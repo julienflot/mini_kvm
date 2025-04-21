@@ -112,6 +112,13 @@ void log_log(LoggerLevel lvl, const char *file, int line, const char *fmt, ...) 
     va_end(args);
 
     fprintf(state.output, "\n");
+    fflush(state.output);
 
     pthread_mutex_unlock(&state.lock);
+}
+
+void logger_stop() {
+    if (state.output != stdout) {
+        fclose(state.output);
+    }
 }

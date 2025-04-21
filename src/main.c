@@ -2,12 +2,14 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <linux/kvm.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
+#include "args.h"
 #include "logger.h"
 
 #define TSS_ADDR 0xfffbd000
@@ -36,16 +38,35 @@ int32_t init_memory(VirtualMachine *vm, const char *img_path);
 int32_t setup_vcpu(VirtualCPU *vcpu);
 int32_t run_vm(VirtualCPU *vcpu);
 
-int main(void) {
-    logger_init(NULL);
+// signal handling helpers
+volatile sig_atomic_t sig_status = 0;
+static void set_signal_status(int signo) { sig_status = signo; }
+
+int main(int argc, char **argv) {
 
     int32_t ret = 0;
     VirtualMachine vm = {};
     VirtualCPU vcpu = {};
+    MiniKVMArgs *args = parse_args(argc, argv);
+
+    if (args == NULL) {
+        ret = -2;
+        goto exit;
+    }
+
+    // =====================
+    // === STARTS THE VM ===
+    // =====================
+    logger_init(args->log_file_path);
+    if (signal(SIGINT, set_signal_status) == SIG_ERR) {
+        ERROR("unable to register set_signal_status to SIGINT signal");
+        ret = -1;
+        goto args_cleanup;
+    }
 
     if ((init_vm(&vm, MEM_SIZE)) < 0) {
         ret = -1;
-        goto exit;
+        goto args_cleanup;
     }
 
     if ((init_vcpu(&vm, &vcpu, 0)) < 0) {
@@ -58,7 +79,7 @@ int main(void) {
         goto vcpu_close;
     }
 
-    if (init_memory(&vm, IMG_PATH) < 0) {
+    if (init_memory(&vm, args->img_path) < 0) {
         ret = -1;
         goto vcpu_close;
     }
@@ -70,8 +91,10 @@ vcpu_close:
 vm_close:
     close(vm.vm_fd);
     close(vm.kvm_fd);
+args_cleanup:
+    free_parse_args(args);
 exit:
-    INFO("exits with %d", ret);
+    logger_stop();
     return ret;
 }
 
@@ -304,6 +327,11 @@ int32_t run_vm(VirtualCPU *vcpu) {
         default:
             ERROR("KVM unhandled EXIT reason %d", exit_reason);
             goto run_vm_exit;
+        }
+
+        // check for signals
+        if (sig_status == SIGINT) {
+            break;
         }
     }
 

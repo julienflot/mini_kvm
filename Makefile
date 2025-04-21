@@ -15,7 +15,7 @@ all: build
 
 .PHONY: run
 run: build
-	./build/$(EXEC)
+	./build/$(EXEC) -I build/$(GUEST_IMG)
 
 .PHONY: build
 build: $(OBJ_FILES) build/$(GUEST_IMG)
@@ -25,6 +25,9 @@ build/main.o: src/main.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/logger.o: src/logger.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+build/args.o: src/args.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 build/$(GUEST_IMG): build/boot.o guest/guest.ld
