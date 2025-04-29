@@ -4,6 +4,7 @@
 #include <linux/kvm.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -14,7 +15,6 @@
 
 #define TSS_ADDR 0xfffbd000
 #define MEM_SIZE 0x80000
-#define IMG_PATH "build/guest.img"
 
 typedef struct VirtualMachine {
     int32_t kvm_fd;
@@ -47,8 +47,9 @@ int main(int argc, char **argv) {
     int32_t ret = 0;
     VirtualMachine vm = {};
     VirtualCPU vcpu = {};
-    MiniKVMArgs *args = parse_args(argc, argv);
+    MiniKVMArgs *args = NULL;
 
+    args = parse_args(argc, argv);
     if (args == NULL) {
         ret = -2;
         goto exit;
@@ -92,9 +93,9 @@ vm_close:
     close(vm.vm_fd);
     close(vm.kvm_fd);
 args_cleanup:
+    logger_stop();
     free_parse_args(args);
 exit:
-    logger_stop();
     return ret;
 }
 
@@ -103,7 +104,7 @@ int32_t init_vm(VirtualMachine *vm, uint64_t mem_size) {
     struct kvm_userspace_memory_region u_region = {0};
 
     vm->mem_size = mem_size;
-    vm->kvm_fd = open("/dev/kvm", O_RDWR);
+    vm->kvm_fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
     if (vm->kvm_fd < 0) {
         ERROR("failed to open /dev/kvm");
         ret = -1;
@@ -248,6 +249,7 @@ int32_t setup_vcpu(VirtualCPU *vcpu) {
     memset(&vcpu->regs, 0, sizeof(struct kvm_regs));
     vcpu->regs.rflags = 0b10; // 2nd bit of rflags have to be set to 1
     vcpu->regs.rip = 0;
+    vcpu->regs.rsp = MEM_SIZE >> 2;
 
     if (ioctl(vcpu->fd, KVM_SET_REGS, &vcpu->regs) < 0) {
         ERROR("VCPU failed to set registers (%s)", strerror(errno));
@@ -287,7 +289,8 @@ int32_t run_vm(VirtualCPU *vcpu) {
 
     INFO("KVM start run");
 
-    while (true) {
+    bool shutdown = false;
+    while (!shutdown) {
         ret = ioctl(vcpu->fd, KVM_RUN, 0);
         if (ret < 0) {
             ERROR("KVM run failed with : %d (%s)", ret, strerror(errno));
@@ -298,7 +301,8 @@ int32_t run_vm(VirtualCPU *vcpu) {
         switch (exit_reason) {
         case KVM_EXIT_UNKNOWN:
             ERROR("KVM unknown exit reason, aborting");
-            goto run_vm_exit;
+            shutdown = true;
+            break;
 
         case KVM_EXIT_DEBUG:
             WARN("KVM_EXIT_DEBUG");
@@ -306,10 +310,15 @@ int32_t run_vm(VirtualCPU *vcpu) {
 
         case KVM_EXIT_IO:
             TRACE(
-                "KVM_EXIT_IO port: %d, data: %d", vcpu->kvm_run->io.port,
+                "KVM_EXIT_IO port %s: %d, data: %d", vcpu->kvm_run->io.direction ? "out" : "in",
+                vcpu->kvm_run->io.port,
                 *(int32_t *)((char *)(vcpu->kvm_run) + vcpu->kvm_run->io.data_offset));
 
             sleep(1);
+            break;
+
+        case KVM_EXIT_HLT:
+            TRACE("KVM vm is halting");
             break;
 
         case KVM_EXIT_MMIO:
@@ -322,16 +331,31 @@ int32_t run_vm(VirtualCPU *vcpu) {
 
         case KVM_EXIT_SHUTDOWN:
             WARN("KVM_EXIT_SHUTDOWN");
+            shutdown = true;
+            break;
+
+        case KVM_EXIT_FAIL_ENTRY:
+            ERROR(
+                "KVM KVM_RUN failed entry with: reason %u. cpu: %u",
+                vcpu->kvm_run->fail_entry.hardware_entry_failure_reason,
+                vcpu->kvm_run->fail_entry.cpu);
+            shutdown = true;
+            break;
+
+        case KVM_EXIT_INTERNAL_ERROR:
+            ERROR("KVM KVM_RUN internal error");
+            shutdown = true;
             break;
 
         default:
             ERROR("KVM unhandled EXIT reason %d", exit_reason);
-            goto run_vm_exit;
+            shutdown = true;
+            break;
         }
 
         // check for signals
         if (sig_status == SIGINT) {
-            break;
+            shutdown = true;
         }
     }
 
