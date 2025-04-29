@@ -6,7 +6,33 @@
 #include <string.h>
 #include <unistd.h>
 
-MiniKVMArgs *parse_args(int argc, char **argv) {
+static void copy_argv_str(char **dst, const char *src) {
+    uint64_t src_len = strlen(src);
+    *dst = malloc(sizeof(char) * (1 + src_len));
+    strncpy(*dst, src, src_len + 1);
+}
+
+static int32_t parse_str(int32_t argc, char **argv, int32_t index, char **args_dst) {
+    if (index == argc || argv[index][0] == '-') {
+        printf("%s: bad argument\n", argv[index - 1]);
+        return -1;
+    }
+
+    copy_argv_str(args_dst, argv[index]);
+    return 0;
+}
+
+static int32_t parse_filepath(int32_t argc, char **argv, int32_t index, char **args_dst) {
+    if (index == argc || access(argv[index], F_OK)) {
+        printf("%s: bad argument (%s does not exist)\n", argv[index - 1], argv[index]);
+        return -1;
+    }
+
+    copy_argv_str(args_dst, argv[index]);
+    return 0;
+}
+
+MiniKVMArgs *parse_args(int32_t argc, char **argv) {
     int32_t index = 1;
     MiniKVMArgs *args = malloc(sizeof(MiniKVMArgs));
     args->img_path = NULL;
@@ -16,26 +42,13 @@ MiniKVMArgs *parse_args(int argc, char **argv) {
 
         // TODO: handle case where `-I` is the last argument (argv[index++] == NULL)
         if (strncmp(argv[index], "-I", 2) == 0 && args->img_path == NULL) {
-            index++;
-            if (access(argv[index], F_OK)) { // file not found
-                printf("-I: bad argument (%s does not exist)\n", argv[index]);
+            if (parse_filepath(argc, argv, ++index, &args->img_path)) {
                 goto parse_args_parse_error;
             }
-
-            // file found copy path to args
-            uint64_t img_path_len = strlen(argv[index]);
-            args->img_path = malloc(sizeof(char) * (1 + img_path_len));
-            strncpy(args->img_path, argv[index], img_path_len + 1);
-        } else if (strncmp(argv[index], "-D", 2) == 0) {
-            index++;
-            if (index == argc || argv[index][0] == '-') {
-                printf("-D: bad argument\n");
+        } else if (strncmp(argv[index], "-D", 2) == 0 && args->log_file_path == NULL) {
+            if (parse_str(argc, argv, ++index, &args->log_file_path)) {
                 goto parse_args_parse_error;
             }
-
-            uint64_t log_path_len = strlen(argv[index]);
-            args->log_file_path = malloc(sizeof(char) * (1 + log_path_len));
-            strncpy(args->log_file_path, argv[index], log_path_len + 1);
         } else {
             printf("unknown arguments %s\n", argv[index]);
             goto parse_args_usage;
