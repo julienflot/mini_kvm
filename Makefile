@@ -30,6 +30,9 @@ build/logger.o: src/logger.c
 build/args.o: src/args.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+build/debug.o: src/debug.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
 build/$(GUEST_IMG): build/boot.o guest/guest.ld
 	$(LD) --oformat binary -T guest/guest.ld -m elf_i386 build/boot.o -o $@
 	

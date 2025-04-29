@@ -4,7 +4,6 @@
 #include <linux/kvm.h>
 #include <signal.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -309,7 +308,7 @@ int32_t run_vm(VirtualCPU *vcpu) {
             break;
 
         case KVM_EXIT_IO:
-            TRACE(
+            INFO(
                 "KVM_EXIT_IO port %s: %d, data: %d", vcpu->kvm_run->io.direction ? "out" : "in",
                 vcpu->kvm_run->io.port,
                 *(int32_t *)((char *)(vcpu->kvm_run) + vcpu->kvm_run->io.data_offset));
