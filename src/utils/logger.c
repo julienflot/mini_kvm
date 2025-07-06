@@ -16,14 +16,14 @@ typedef struct LoggerState {
     pthread_mutex_t lock;
 } LoggerState;
 
-const static char *level_str[] = {
+static const char *level_str[] = {
     "TRACE",
     "INFO ",
     "WARN ",
     "ERROR",
 };
 
-const static char *level_color[] = {
+static const char *level_color[] = {
     "\e[1;34m", // TRACE = blue
     "\e[1;32m", // INFO = green
     "\e[1;33m", // WARN = yellow
