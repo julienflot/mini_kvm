@@ -1,7 +1,7 @@
 CC = clang
 LD = ld
-CFLAGS = -Wall -Wextra -Werror -Isrc -O0 -g
-GUEST_CFLAGS = -m32 -fno-pic -O0 -Wall -Wextra -Werror
+CFLAGS = -Wall -Wextra -Werror -Isrc -O2 -g
+GUEST_CFLAGS = -m32 -fno-pic -Wall -Wextra -Werror
 SRC_FILES = $(wildcard src/**.c)
 OBJ_FILES = $(patsubst %.c, %.o, $(patsubst src/%, build/%, $(SRC_FILES)))
 EXEC = mini_kvm
