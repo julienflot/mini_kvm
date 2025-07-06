@@ -3,7 +3,7 @@
 #include "utils/logger.h"
 
 int main() {
-    logger_init(NULL);
+    logger_init("");
     INFO("minikvm initialization");
 
     return 0;

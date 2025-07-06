@@ -63,7 +63,7 @@ static LoggerLevel parse_log_env() {
 
 void logger_init(const char *path) {
     pthread_mutex_lock(&state.lock);
-    if (path != NULL) {
+    if (path != NULL && strlen(path) != 0) {
         state.output = fopen(path, "w");
         state.enable_color = false;
     } else {
