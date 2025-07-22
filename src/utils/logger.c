@@ -63,15 +63,23 @@ static LoggerLevel parse_log_env() {
 
 void logger_init(const char *path) {
     pthread_mutex_lock(&state.lock);
-    if (path != NULL) {
+    logger_set_output(path);
+    state.level = parse_log_env();
+    state.timer = time(NULL);
+    pthread_mutex_unlock(&state.lock);
+}
+
+void logger_set_output(const char *path) {
+    if (state.output != stdout && state.output != NULL) {
+        fclose(state.output);
+    }
+
+    if (path != NULL && strlen(path) != 0) {
         state.output = fopen(path, "w");
         state.enable_color = false;
     } else {
         state.output = stdout;
     }
-    state.level = parse_log_env();
-    state.timer = time(NULL);
-    pthread_mutex_unlock(&state.lock);
 }
 
 void logger_set_level(LoggerLevel level) {
