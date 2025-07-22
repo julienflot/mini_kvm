@@ -175,6 +175,10 @@ int mini_kvm_run(int argc, char **argv) {
     }
     INFO("kernel loaded in guest memory");
 
+    // if vcpu number has not been specified by the user, mini_kvm set it to at least one
+    if (args.vcpu == 0) {
+        args.vcpu = 1;
+    }
     for (uint32_t i = 0; i < args.vcpu; i++) {
         ret = mini_kvm_add_vcpu(kvm);
         if (ret != MINI_KVM_SUCCESS) {
