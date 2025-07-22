@@ -13,6 +13,7 @@ typedef enum LoggerLevel {
 
 void logger_init(const char *path);
 void logger_set_level(LoggerLevel lvl);
+void logger_set_output(const char *path);
 void log_log(LoggerLevel lvl, const char *file, int line, const char *fmt, ...);
 void logger_stop();
 
