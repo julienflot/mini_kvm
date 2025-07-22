@@ -22,3 +22,7 @@ add_executable(${PROJECT_EXEC}
 )
 target_link_libraries(${PROJECT_EXEC} ${PROJECT_NAME})
 target_include_directories(${PROJECT_EXEC} PUBLIC ${MINI_KVM_SRC_DIR})
+
+# add tests
+include(CTest)
+add_subdirectory(tests)

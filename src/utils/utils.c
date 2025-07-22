@@ -53,7 +53,7 @@ int32_t is_number(const char *str, size_t n) {
     return 1;
 }
 
-int32_t to_number(const char *str, size_t n, uint32_t *dst) {
+int32_t to_number(const char *str, size_t n, uint64_t *dst) {
     if (!is_number(str, n)) {
         return -1;
     }

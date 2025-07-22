@@ -15,6 +15,6 @@ int check_cpu_vendor(MiniKVMCPUVendor v);
 
 // return true is str is a number (1234 => 1, hello => 0, 1234.1234 => 0)
 int32_t is_number(const char *str, size_t n);
-int32_t to_number(const char *str, size_t n, uint32_t *dst);
+int32_t to_number(const char *str, size_t n, uint64_t *dst);
 
 #endif /*  MINI_VKM_UTILS_H */

@@ -12,16 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/types.h>
 #include <unistd.h>
-
-typedef struct MiniKvmRunArgs {
-    bool log_enabled;
-    uint32_t vcpu;
-    uint32_t mem_size;
-    uint64_t kernel_size;
-    uint8_t *kernel_code;
-} MiniKvmRunArgs;
 
 static const struct option opts_def[] = {
     {"log", optional_argument, NULL, 'l'},
@@ -32,7 +23,7 @@ static const struct option opts_def[] = {
     {"kernel", required_argument, NULL, 'k'},
     {0, 0, 0, 0}};
 
-static int32_t parse_mem(char *arg, uint32_t *mem) {
+static int32_t parse_mem(char *arg, uint64_t *mem) {
     uint32_t arg_len = strlen(arg);
     if (arg_len == 0) {
         return -1;
@@ -71,7 +62,7 @@ void run_print_help() {
     printf("\t--help/-h: print this message\n");
 }
 
-static int run_parser_args(int argc, char **argv, MiniKvmRunArgs *args) {
+int run_parser_args(int argc, char **argv, MiniKvmRunArgs *args) {
     int ret = 0;
     int index = 0;
     char c = 0;
@@ -100,7 +91,7 @@ static int run_parser_args(int argc, char **argv, MiniKvmRunArgs *args) {
                 ERROR("--vcpu expect a digit, got : %s", optarg);
                 ret = MINI_KVM_ARGS_FAILED;
             }
-            to_number(optarg, strlen(optarg), &args->vcpu);
+            to_number(optarg, strlen(optarg), (uint64_t *)&args->vcpu);
             break;
 
         case 'k':
