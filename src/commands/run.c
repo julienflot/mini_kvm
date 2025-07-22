@@ -157,7 +157,7 @@ int mini_kvm_run(int argc, char **argv) {
     }
     INFO("mini_kvm: argument parsing successful, starts initialization");
 
-    kvm = malloc(sizeof(Kvm));
+    kvm = calloc(1, sizeof(Kvm));
     if (kvm == NULL) {
         ret = MINI_KVM_FAILED_ALLOCATION;
         ERROR("failed to allocate mini kvm struct");

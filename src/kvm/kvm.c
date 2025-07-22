@@ -62,6 +62,10 @@ int mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
         }
     }
 
+    if (mem_size == 0) {
+        ERROR("cannot create VM with memory of size 0");
+        return MINI_KVM_FAILED_ALLOCATION;
+    }
     kvm->mem_size = mem_size;
     kvm->mem = mmap(
         NULL, mem_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
@@ -254,13 +258,17 @@ int32_t mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
 }
 
 void mini_kvm_clean_kvm(Kvm *kvm) {
-    for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
-        munmap(kvm->vcpus[i].kvm_run, kvm->vcpus[i].mem_region_size);
-        close(kvm->vcpus[i].fd);
+    if (kvm->vcpu_count > 0) {
+        for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
+            munmap(kvm->vcpus[i].kvm_run, kvm->vcpus[i].mem_region_size);
+            close(kvm->vcpus[i].fd);
+        }
+        free(kvm->vcpus);
     }
-    free(kvm->vcpus);
 
-    munmap(kvm->mem, kvm->mem_size);
+    if (kvm->mem) {
+        munmap(kvm->mem, kvm->mem_size);
+    }
     close(kvm->kvm_fd);
     close(kvm->vm_fd);
     free(kvm);
