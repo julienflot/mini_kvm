@@ -1,7 +1,7 @@
 # Mini KVM architecture
 
 Mini is designed to run simple and lightweight Linux virtual machines. 
-This project is toy project that is used to learn about Operating systems, C and Linux programming, and a bunch of other things.
+This project is a toy project that I used to learn about Operating systems, C and Linux programming, etc.
 This file is here to remind me how did I organized the code structure and which design choice have made (and possibly why for avoiding looking at my code and say "why did I wrote that ... 30min later .. Oh that is why").
 
 
@@ -18,7 +18,11 @@ This binary should be able to perform the following operations :
 
 ## Files structure
 
-> **TODO**
+- `main.c` : entry point, do the sub command parsing and pass CLI arguments to the sub command handler.
+- `commands.h` : contains all function definitions for sub commands handling.
+- `commands/run.{h,c}` : implementation of the run sub command.
+- `kvm/kvm.{c, h}` : contains all function related to the KVM API (VM creation, VCPU setup and machine configuration).
+- `utils/` : contains every utilities and misc functions for the project (errors definitions, logging, etc).
 
 ## Code path
 
