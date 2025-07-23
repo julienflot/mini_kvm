@@ -1,10 +1,7 @@
 #include "utils.h"
 
 #include <inttypes.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 
 #define EAX 0
 #define EBX 1

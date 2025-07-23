@@ -11,7 +11,9 @@ add_library(${PROJECT_NAME} STATIC
     ${MINI_KVM_SRC_DIR}/utils/logger.c 
     ${MINI_KVM_SRC_DIR}/utils/errors.c 
     ${MINI_KVM_SRC_DIR}/utils/utils.c 
+    ${MINI_KVM_SRC_DIR}/utils/filesystem.c 
     ${MINI_KVM_SRC_DIR}/commands/run.c 
+    ${MINI_KVM_SRC_DIR}/commands/status.c 
     ${MINI_KVM_SRC_DIR}/kvm/kvm.c 
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${MINI_KVM_SRC_DIR})

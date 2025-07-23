@@ -2,14 +2,13 @@
 #include <string.h>
 
 #include "commands.h"
-#include "commands/run.h"
 #include "utils/errors.h"
 #include "utils/logger.h"
 
-// TODO: add other commands to prevent segfault
-const MiniKVMCommand commands[] = {{"run", mini_kvm_run}, {NULL, NULL}};
+const MiniKVMCommand commands[] = {
+    {"run", mini_kvm_run}, {"status", mini_kvm_status}, {NULL, NULL}};
 
-void print_help() { printf("mini_kvm <run|pause|resume>\n"); }
+void print_help() { printf("mini_kvm <run|pause|resume|status>\n"); }
 
 int handle_command(int argc, char **argv) {
     int cmd_idx = 0;

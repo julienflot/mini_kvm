@@ -6,4 +6,7 @@ typedef struct MiniKVMCommand {
     int (*run)(int, char **);
 } MiniKVMCommand;
 
+int mini_kvm_run(int argc, char **argv);
+int mini_kvm_status(int argc, char **argv);
+
 #endif /* MINI_KVM_COMMANDS_H */

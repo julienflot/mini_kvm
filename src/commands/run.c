@@ -1,10 +1,13 @@
 #include "run.h"
+#include "constants.h"
 #include "kvm/kvm.h"
 #include "utils/errors.h"
+#include "utils/filesystem.h"
 #include "utils/logger.h"
 #include "utils/utils.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -12,16 +15,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static const struct option opts_def[] = {
-    {"log", optional_argument, NULL, 'l'},
-    {"help", no_argument, NULL, 'h'},
-    {"vcpu", required_argument, NULL, 'v'},
-    {"disk", required_argument, NULL, 'd'},
-    {"mem", required_argument, NULL, 'm'},
-    {"kernel", required_argument, NULL, 'k'},
-    {0, 0, 0, 0}};
+    {"name", required_argument, NULL, 'n'},   {"log", optional_argument, NULL, 'l'},
+    {"help", no_argument, NULL, 'h'},         {"vcpu", required_argument, NULL, 'v'},
+    {"disk", required_argument, NULL, 'd'},   {"mem", required_argument, NULL, 'm'},
+    {"kernel", required_argument, NULL, 'k'}, {0, 0, 0, 0}};
 
 static int32_t parse_mem(char *arg, uint64_t *mem) {
     uint32_t arg_len = strlen(arg);
@@ -56,22 +57,29 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
 
 void run_print_help() {
     printf("USAGE: mini_kvm run\n");
+    printf("\t--name/-n: set the name of the virtual machine\n");
     printf("\t--log/-l: enable logging, can specify an output file with --log=output.txt\n");
     printf("\t--mem/-m: memory allocated to the virtual machine in bytes\n");
     printf("\t--vcpu/-v: number of vcpus dedicated to the virtual machine\n");
     printf("\t--help/-h: print this message\n");
 }
 
-int run_parser_args(int argc, char **argv, MiniKvmRunArgs *args) {
-    int ret = 0;
-    int index = 0;
+int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
+    int ret = 0, index = 0;
     char c = 0;
     FILE *kernel_file = NULL;
+    uint32_t name_len = 0;
+
     while (c != -1 && ret != MINI_KVM_ARGS_FAILED) {
-        c = getopt_long(argc, argv, "l::v::d:m:h", opts_def, &index);
+        c = getopt_long(argc, argv, "l::v::d:m:n:h", opts_def, &index);
 
         // TODO: enable support for disk option
         switch (c) {
+        case 'n':
+            name_len = strlen(optarg);
+            args->name = malloc(sizeof(char) * (name_len + 1));
+            strncpy(args->name, optarg, name_len + 1);
+            break;
         case 'l':
             args->log_enabled = true;
             if (optarg) {
@@ -146,16 +154,55 @@ static int32_t load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
     return MINI_KVM_SUCCESS;
 }
 
+int32_t init_filesystem(char *name) {
+    struct stat root_dir_stat = {};
+    if (stat(MINI_KVM_FS_ROOT_PATH, &root_dir_stat) == -1) {
+        if (mkdir(MINI_KVM_FS_ROOT_PATH, 0700) < -1) {
+            ERROR("failed to create %s (%s)", MINI_KVM_FS_ROOT_PATH, strerror(errno));
+            return MINI_KVM_FAILED_FS_SETUP;
+        }
+    }
+
+    int root_dir_fs = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
+    mkdirat(root_dir_fs, name, 0700);
+    int vm_dir_fs = openat(root_dir_fs, name, O_DIRECTORY | O_RDONLY);
+
+    char *pidfile_name = malloc(sizeof(char) * (strlen(name) + 4 + 1));
+    sprintf(pidfile_name, "%s.pid", name);
+    int vm_pid_file = openat(
+        vm_dir_fs, pidfile_name, O_CREAT | O_RDWR | O_TRUNC,
+        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (vm_pid_file < -1) {
+        ERROR("failed to create %s pidfile (%s)", name, strerror(errno));
+        return MINI_KVM_FAILED_FS_SETUP;
+    }
+
+    int mainpid = getpid();
+    write(vm_pid_file, &mainpid, sizeof(int));
+
+    close(vm_pid_file);
+    close(vm_dir_fs);
+    close(root_dir_fs);
+    free(pidfile_name);
+
+    TRACE("filesystem initialized for VM %s", name);
+    return MINI_KVM_SUCCESS;
+}
+
 int mini_kvm_run(int argc, char **argv) {
     int ret = 0;
     Kvm *kvm = NULL;
     MiniKvmRunArgs args = {0};
 
-    ret = run_parser_args(argc, argv, &args);
+    ret = run_parse_args(argc, argv, &args);
     if (ret != 0) {
         goto out;
     }
     INFO("mini_kvm: argument parsing successful, starts initialization");
+
+    if (args.name != NULL && args.name[0] != '\0') {
+        init_filesystem(args.name);
+    }
 
     kvm = calloc(1, sizeof(Kvm));
     if (kvm == NULL) {
@@ -166,12 +213,12 @@ int mini_kvm_run(int argc, char **argv) {
 
     ret = mini_kvm_setup_kvm(kvm, args.mem_size);
     if (ret != 0) {
-        goto clean_kvm_struct;
+        goto clean;
     }
 
     ret = load_kernel(kvm, &args, 0);
     if (ret != 0) {
-        goto clean_kvm_struct;
+        goto clean;
     }
     INFO("kernel loaded in guest memory");
 
@@ -182,22 +229,30 @@ int mini_kvm_run(int argc, char **argv) {
     for (uint32_t i = 0; i < args.vcpu; i++) {
         ret = mini_kvm_add_vcpu(kvm);
         if (ret != MINI_KVM_SUCCESS) {
-            goto clean_kvm_struct;
+            goto clean;
         }
 
         ret = mini_kvm_setup_vcpu(kvm, i);
         if (ret != MINI_KVM_SUCCESS) {
-            goto clean_kvm_struct;
+            goto clean;
         }
     }
 
     mini_kvm_vcpu_run(kvm, 0);
 
-clean_kvm_struct:
+clean:
     mini_kvm_clean_kvm(kvm);
 
     if (args.kernel_code != NULL) {
         free(args.kernel_code);
+    }
+
+    if (args.name != NULL) {
+        char *path = malloc(sizeof(char) * (strlen(args.name) + strlen(MINI_KVM_FS_ROOT_PATH) + 2));
+        sprintf(path, "%s/%s", MINI_KVM_FS_ROOT_PATH, args.name);
+        rmrf(path);
+        free(path);
+        free(args.name);
     }
 
 out:
