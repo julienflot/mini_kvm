@@ -124,6 +124,7 @@ int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
             break;
 
         case '?':
+            run_print_help();
             ret = MINI_KVM_ARGS_FAILED;
             break;
         }
