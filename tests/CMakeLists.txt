@@ -9,7 +9,7 @@ function(define_test test_name)
 endfunction()
 
 function(define_mkvm_test_fail name regex args)
-    string(REPLACE " " ";" ${args})
+    string(REPLACE " " ";" args "${args}")
     add_test(NAME mkvm.${name} COMMAND mkvm ${args})
     set_property(TEST mkvm.${name} 
         PROPERTY WILL_FAIL
