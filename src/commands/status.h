@@ -24,7 +24,7 @@ typedef struct MiniKvmStatusResult {
 } MiniKvmStatusResult;
 
 int32_t mini_kvm_start_status_thread(Kvm *kvm);
-int32_t
-mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd, MiniKvmStatusResult *res);
+int32_t mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                       MiniKvmStatusResult *res);
 
 #endif /* MINI_KVM_STATUS */

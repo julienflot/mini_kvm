@@ -69,8 +69,8 @@ int mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
         return MINI_KVM_FAILED_ALLOCATION;
     }
     kvm->mem_size = mem_size;
-    kvm->mem = mmap(
-        NULL, mem_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
+    kvm->mem = mmap(NULL, mem_size, PROT_READ | PROT_WRITE,
+                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
     if (kvm->mem == MAP_FAILED) {
         ERROR("failed to allocate VM memory (%s)", strerror(errno));
         return MINI_KVM_FAILED_ALLOCATION;

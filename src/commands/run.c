@@ -176,9 +176,8 @@ int32_t init_filesystem(char *name, Kvm *kvm) {
 
     char *pidfile_name = malloc(sizeof(char) * (strlen(name) + 4 + 1));
     sprintf(pidfile_name, "%s.pid", name);
-    int vm_pid_file = openat(
-        kvm->fs_fd, pidfile_name, O_CREAT | O_TRUNC | O_WRONLY,
-        S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    int vm_pid_file = openat(kvm->fs_fd, pidfile_name, O_CREAT | O_TRUNC | O_WRONLY,
+                             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
     if (vm_pid_file < 0) {
         ERROR("failed to create %s pidfile (%s)", name, strerror(errno));
         return MINI_KVM_FAILED_FS_SETUP;

@@ -239,8 +239,8 @@ int32_t mini_kvm_start_status_thread(Kvm *kvm) {
     return ret;
 }
 
-int32_t
-mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd, MiniKvmStatusResult *res) {
+int32_t mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                       MiniKvmStatusResult *res) {
     pthread_mutex_lock(&kvm->lock);
     switch (cmd->type) {
     case MINI_KVM_COMMAND_RUNNING:
