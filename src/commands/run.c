@@ -1,4 +1,5 @@
 #include "run.h"
+#include "commands/status.h"
 #include "constants.h"
 #include "kvm/kvm.h"
 #include "utils/errors.h"
@@ -108,6 +109,8 @@ int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
                 ERROR("unable to open kernel code (%s)", strerror(errno));
                 ret = MINI_KVM_ARGS_FAILED;
             }
+
+            // trick to get the size in bytes of the file (needed for allocating correct mem size)
             fseek(kernel_file, 0, SEEK_END);
             args->kernel_size = ftell(kernel_file);
             fseek(kernel_file, 0, SEEK_SET);
@@ -155,7 +158,7 @@ static int32_t load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
     return MINI_KVM_SUCCESS;
 }
 
-int32_t init_filesystem(char *name) {
+int32_t init_filesystem(char *name, Kvm *kvm) {
     struct stat root_dir_stat = {};
     if (stat(MINI_KVM_FS_ROOT_PATH, &root_dir_stat) == -1) {
         if (mkdir(MINI_KVM_FS_ROOT_PATH, 0700) < -1) {
@@ -166,27 +169,27 @@ int32_t init_filesystem(char *name) {
 
     int root_dir_fs = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
     mkdirat(root_dir_fs, name, 0700);
-    int vm_dir_fs = openat(root_dir_fs, name, O_DIRECTORY | O_RDONLY);
+
+    kvm->fs_fd = openat(root_dir_fs, name, O_DIRECTORY | O_RDONLY);
+    kvm->fs_path = malloc(sizeof(char) * (strlen(name) + strlen(MINI_KVM_FS_ROOT_PATH) + 2));
+    sprintf(kvm->fs_path, "%s/%s", MINI_KVM_FS_ROOT_PATH, name);
 
     char *pidfile_name = malloc(sizeof(char) * (strlen(name) + 4 + 1));
     sprintf(pidfile_name, "%s.pid", name);
     int vm_pid_file = openat(
-        vm_dir_fs, pidfile_name, O_CREAT | O_RDWR | O_TRUNC,
+        kvm->fs_fd, pidfile_name, O_CREAT | O_TRUNC | O_WRONLY,
         S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-    if (vm_pid_file < -1) {
+    if (vm_pid_file < 0) {
         ERROR("failed to create %s pidfile (%s)", name, strerror(errno));
         return MINI_KVM_FAILED_FS_SETUP;
     }
-
     int mainpid = getpid();
     write(vm_pid_file, &mainpid, sizeof(int));
 
     close(vm_pid_file);
-    close(vm_dir_fs);
     close(root_dir_fs);
     free(pidfile_name);
 
-    TRACE("filesystem initialized for VM %s", name);
     return MINI_KVM_SUCCESS;
 }
 
@@ -200,10 +203,6 @@ int mini_kvm_run(int argc, char **argv) {
         goto out;
     }
     INFO("mini_kvm: argument parsing successful, starts initialization");
-
-    if (args.name != NULL && args.name[0] != '\0') {
-        init_filesystem(args.name);
-    }
 
     kvm = calloc(1, sizeof(Kvm));
     if (kvm == NULL) {
@@ -239,23 +238,37 @@ int mini_kvm_run(int argc, char **argv) {
         }
     }
 
+    if (args.name != NULL && args.name[0] != '\0') {
+        kvm->name = malloc(sizeof(char) * (strlen(args.name) + 1));
+        strncpy(kvm->name, args.name, strlen(args.name) + 1);
+        if (init_filesystem(args.name, kvm)) {
+            goto clean;
+        }
+        INFO("filesystem initialized for VM %s", args.name);
+
+        if (mini_kvm_start_status_thread(kvm)) {
+            goto clean;
+        }
+    }
+
     mini_kvm_vcpu_run(kvm, 0);
 
 clean:
-    mini_kvm_clean_kvm(kvm);
-
     if (args.kernel_code != NULL) {
         free(args.kernel_code);
     }
 
     if (args.name != NULL) {
-        char *path = malloc(sizeof(char) * (strlen(args.name) + strlen(MINI_KVM_FS_ROOT_PATH) + 2));
-        sprintf(path, "%s/%s", MINI_KVM_FS_ROOT_PATH, args.name);
-        rmrf(path);
-        free(path);
-        free(args.name);
+        // shutdown status thread
+        // TODO: use a better synchronization mechanism
+        kvm->shutdown_status_thread = true;
+        pthread_join(kvm->status_thread, NULL);
+
+        // cleanup filesystem
+        rmrf(kvm->fs_path);
     }
 
+    mini_kvm_clean_kvm(kvm);
 out:
     return ret;
 }

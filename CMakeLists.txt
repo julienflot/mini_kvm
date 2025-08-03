@@ -17,6 +17,7 @@ add_library(${PROJECT_NAME} STATIC
     ${MINI_KVM_SRC_DIR}/kvm/kvm.c 
 )
 target_include_directories(${PROJECT_NAME} PUBLIC ${MINI_KVM_SRC_DIR})
+target_link_libraries(${PROJECT_NAME} pthread)
 
 set(PROJECT_EXEC mkvm)
 add_executable(${PROJECT_EXEC}

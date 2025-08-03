@@ -1,9 +1,10 @@
 #ifndef MINI_KVM_STRUCT
 #define MINI_KVM_STRUCT
 
-#include <asm/kvm.h>
 #include <inttypes.h>
 #include <linux/kvm.h>
+#include <pthread.h>
+#include <stdbool.h>
 
 typedef struct VCpu {
     int32_t fd;
@@ -19,6 +20,10 @@ typedef struct VCpu {
 } VCpu;
 
 typedef struct Kvm {
+    char *name;
+    char *fs_path;
+    int32_t fs_fd;
+
     int32_t kvm_fd;
     int32_t vm_fd;
 
@@ -29,6 +34,10 @@ typedef struct Kvm {
     uint32_t vcpu_count;
     uint32_t vcpu_capacity;
     VCpu *vcpus;
+
+    pthread_mutex_t lock;
+    pthread_t status_thread;
+    bool shutdown_status_thread;
 } Kvm;
 
 int32_t mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);

@@ -8,7 +8,9 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #include "kvm.h"
@@ -90,11 +92,17 @@ int mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     kvm->vcpu_capacity = 1;
     kvm->vcpus = malloc(sizeof(VCpu));
 
+    pthread_mutex_init(&kvm->lock, NULL);
+
     return MINI_KVM_SUCCESS;
 }
 
 void mini_kvm_set_signals() {
     if (signal(SIGINT, set_signal_status) == SIG_ERR) {
+        WARN("unable to register to signal SIGINT");
+    }
+
+    if (signal(SIGTERM, set_signal_status) == SIG_ERR) {
         WARN("unable to register to signal SIGINT");
     }
 }
@@ -249,7 +257,7 @@ int32_t mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
             break;
         }
 
-        if (sig_status == SIGINT) {
+        if (sig_status == SIGINT || sig_status == SIGTERM) {
             shutdown = 1;
         }
     }
@@ -266,9 +274,16 @@ void mini_kvm_clean_kvm(Kvm *kvm) {
         free(kvm->vcpus);
     }
 
+    if (kvm->name) {
+        close(kvm->fs_fd);
+        free(kvm->fs_path);
+        free(kvm->name);
+    }
+
     if (kvm->mem) {
         munmap(kvm->mem, kvm->mem_size);
     }
+
     close(kvm->kvm_fd);
     close(kvm->vm_fd);
     free(kvm);
