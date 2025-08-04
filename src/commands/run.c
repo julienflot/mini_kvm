@@ -47,10 +47,10 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
 
     // if not unit was provided, we do not need to remove the last char
     uint32_t offset = (unit_scale != 1) ? 1 : 0;
-    if (!is_number(arg, arg_len - offset)) {
+    if (!mini_kvm_is_number(arg, arg_len - offset)) {
         return -1;
     }
-    to_number(arg, arg_len - offset, mem);
+    mini_kvm_to_number(arg, arg_len - offset, mem);
     *mem *= unit_scale;
 
     return 0;
@@ -96,11 +96,11 @@ int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
             break;
 
         case 'v':
-            if (!is_number(optarg, strlen(optarg))) {
+            if (!mini_kvm_is_number(optarg, strlen(optarg))) {
                 ERROR("--vcpu expect a digit, got : %s", optarg);
                 ret = MINI_KVM_ARGS_FAILED;
             }
-            to_number(optarg, strlen(optarg), (uint64_t *)&args->vcpu);
+            mini_kvm_to_number(optarg, strlen(optarg), (uint64_t *)&args->vcpu);
             break;
 
         case 'k':

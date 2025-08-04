@@ -93,6 +93,7 @@ int mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     kvm->vcpus = malloc(sizeof(VCpu));
 
     pthread_mutex_init(&kvm->lock, NULL);
+    kvm->state = MINI_KVM_PAUSED;
 
     return MINI_KVM_SUCCESS;
 }
@@ -169,7 +170,7 @@ int32_t mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
     vcpu->regs.rip = 0;
     vcpu->regs.rsp = kvm->mem_size - 1;
     vcpu->regs.rflags = 0b01;
-    ret = ioctl(vcpu->fd, KVM_SET_REGS, &vcpu->sregs);
+    ret = ioctl(vcpu->fd, KVM_SET_REGS, &vcpu->regs);
     if (ret < 0) {
         ERROR("failed to set vcpu %d regs (%s)", vcpu->id, strerror(errno));
         return MINI_KVM_FAILED_VCPU_CREATION;
@@ -203,6 +204,8 @@ int32_t mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
     if (kvm == NULL || ((uint32_t)id > kvm->vcpu_count)) {
         return MINI_KVM_INTERNAL_ERROR;
     }
+
+    kvm->state = MINI_KVM_RUNNING;
 
     VCpu *vcpu = &kvm->vcpus[id];
     int32_t shutdown = 0, ret = 0;

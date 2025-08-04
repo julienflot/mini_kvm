@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -18,13 +19,19 @@
 #include "kvm/kvm.h"
 #include "utils/errors.h"
 #include "utils/logger.h"
+#include "utils/utils.h"
 
-static const struct option opts_def[] = {
-    {"name", required_argument, NULL, 'n'}, {"help", no_argument, NULL, 'h'}, {0, 0, 0, 0}};
+static const struct option opts_def[] = {{"name", required_argument, NULL, 'n'},
+                                         {"vcpu", required_argument, NULL, 'v'},
+                                         {"regs", no_argument, NULL, 'r'},
+                                         {"help", no_argument, NULL, 'h'},
+                                         {0, 0, 0, 0}};
 
 static void status_print_help() {
     printf("USAGE: mini_kvm run\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
+    printf("\t--regs/-r: request register state\n");
+    printf("\t--vcpus/-v: specify a target VCPU list\n");
 }
 
 static int status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
@@ -32,13 +39,22 @@ static int status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
     char c = 0;
 
     while (c != -1 && ret != MINI_KVM_ARGS_FAILED) {
-        c = getopt_long(argc, argv, "n:h", opts_def, &index);
+        c = getopt_long(argc, argv, "n:v:rh", opts_def, &index);
 
         switch (c) {
         case 'n':
             name_len = strlen(optarg);
             args->name = malloc(sizeof(char) * (name_len + 1));
             strncpy(args->name, optarg, name_len + 1);
+            break;
+        case 'r':
+            args->regs = true;
+            break;
+        case 'v':
+            if (mini_kvm_parse_cpu_list((char *)optarg, &args->vcpus) != MINI_KVM_SUCCESS) {
+                ERROR("invalid cpu list %s", optarg);
+                ret = MINI_KVM_ARGS_FAILED;
+            }
             break;
         case 'h':
             status_print_help();
@@ -50,17 +66,22 @@ static int status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
         }
     }
 
+    // if no vcpu list was given, mini_kvm select all vcpus
+    if (args->vcpus == 0 && args->regs) {
+        args->vcpus = !0;
+    }
+
     return ret;
 }
 
 static int32_t status_open_dir(const char *path) {
     int32_t root_fs_dir = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
     if (root_fs_dir < 0) {
-        return MINI_KVM_INTERNAL_ERROR;
+        return -MINI_KVM_INTERNAL_ERROR;
     }
     int32_t vm_fs_dir = openat(root_fs_dir, path, O_DIRECTORY | O_RDONLY);
     if (vm_fs_dir < 0) {
-        return MINI_KVM_INTERNAL_ERROR;
+        return -MINI_KVM_INTERNAL_ERROR;
     }
 
     return vm_fs_dir;
@@ -91,7 +112,12 @@ static int32_t status_send_command(MiniKvmStatusArgs *args, MiniKvmStatusResult 
         goto close_socket;
     }
 
-    cmd.type = MINI_KVM_COMMAND_RUNNING;
+    if (args->regs) {
+        cmd.type = MINI_KVM_COMMAND_REGS;
+        cmd.vcpus = args->vcpus;
+    } else {
+        cmd.type = MINI_KVM_COMMAND_RUNNING;
+    }
 
     if (send(sock, &cmd, sizeof(cmd), 0) < 0) {
         ERROR("unable to send status socket %s (%s)", args->name, strerror(errno));
@@ -121,6 +147,7 @@ int32_t mini_kvm_status(int argc, char **argv) {
 
     ret = status_parse_args(argc, argv, &args);
     if (ret != 0) {
+        status_print_help();
         goto clean;
     }
 
@@ -154,7 +181,7 @@ int32_t mini_kvm_status(int argc, char **argv) {
     if (ret != 0) {
         goto clean;
     }
-    TRACE("status: %s status: %d", args.name, res.running);
+    TRACE("status: %s status: %d", args.name, res.state);
 
 clean:
     if (args.name != NULL) {
@@ -243,11 +270,27 @@ int32_t mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                        MiniKvmStatusResult *res) {
     pthread_mutex_lock(&kvm->lock);
     switch (cmd->type) {
-    case MINI_KVM_COMMAND_RUNNING:
-        // TODO: add check here for vcpu count
-        res->running = kvm->vcpus[0].running;
-        break;
     case MINI_KVM_COMMAND_NONE: // do nothing
+        break;
+    case MINI_KVM_COMMAND_RUNNING:
+        res->state = kvm->state;
+        break;
+    case MINI_KVM_COMMAND_REGS:
+        for (uint32_t index = 0; index < kvm->vcpu_count; index++) {
+            if (!(cmd->vcpus & (1 << index))) {
+                continue;
+            }
+
+            VCpu vcpu = kvm->vcpus[index];
+            if (ioctl(vcpu.fd, KVM_GET_REGS, &res->regs)) {
+                ERROR("failed to vcpu %u registers (%s)", index, strerror(errno));
+                return MINI_KVM_INTERNAL_ERROR;
+            }
+            if (ioctl(vcpu.fd, KVM_GET_SREGS, &res->sregs)) {
+                ERROR("failed to vcpu %u sregisters (%s)", index, strerror(errno));
+                return MINI_KVM_INTERNAL_ERROR;
+            }
+        }
         break;
     }
     pthread_mutex_unlock(&kvm->lock);

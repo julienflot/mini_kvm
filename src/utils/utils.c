@@ -1,6 +1,9 @@
 #include "utils.h"
 
+#include "utils/errors.h"
+
 #include <inttypes.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define EAX 0
@@ -34,7 +37,7 @@ int check_cpu_vendor(MiniKVMCPUVendor v) {
     return strncmp(vendor_name[v], name, VENDOR_ID_LEN) == 0;
 }
 
-int32_t is_number(const char *str, size_t n) {
+int32_t mini_kvm_is_number(const char *str, size_t n) {
     if (str == NULL || strlen(str) == 0) {
         return 0;
     }
@@ -50,8 +53,8 @@ int32_t is_number(const char *str, size_t n) {
     return 1;
 }
 
-int32_t to_number(const char *str, size_t n, uint64_t *dst) {
-    if (!is_number(str, n)) {
+int32_t mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
+    if (!mini_kvm_is_number(str, n)) {
         return -1;
     }
 
@@ -64,4 +67,38 @@ int32_t to_number(const char *str, size_t n, uint64_t *dst) {
     }
 
     return 0;
+}
+
+int32_t mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
+    int32_t index = 0, ret = MINI_KVM_SUCCESS;
+    uint64_t raw_list_len = strlen(raw_list), final = 0;
+
+    if (raw_list == NULL || raw_list[0] == '\0') {
+        return ret;
+    }
+
+    while (raw_list[index] != '\0') {
+        uint32_t offset = 1, current = 0;
+        while (index + offset < raw_list_len && mini_kvm_is_number(raw_list + index, offset)) {
+            offset++;
+        }
+
+        // check if we have valid character in the list
+        if (index + offset < raw_list_len && raw_list[index + offset - 1] != ',') {
+            ret = MINI_KVM_ARGS_FAILED;
+            return ret;
+        }
+
+        ret = mini_kvm_to_number(raw_list + index, offset - ((raw_list_len - (index + offset)) > 0),
+                                 (uint64_t *)&current);
+        if (ret != MINI_KVM_SUCCESS) {
+            return ret;
+        }
+
+        final |= 1 << current;
+        index += offset;
+    }
+
+    *cpu_list = final;
+    return ret;
 }

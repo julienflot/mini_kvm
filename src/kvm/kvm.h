@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <stdbool.h>
 
+typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING } VMState;
+
 typedef struct VCpu {
     int32_t fd;
     uint32_t id;
@@ -38,6 +40,8 @@ typedef struct Kvm {
     pthread_mutex_t lock;
     pthread_t status_thread;
     bool shutdown_status_thread;
+
+    VMState state;
 } Kvm;
 
 int32_t mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
