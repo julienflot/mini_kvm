@@ -11,11 +11,13 @@
 #include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -159,37 +161,66 @@ static int32_t load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
 }
 
 int32_t init_filesystem(char *name, Kvm *kvm) {
-    struct stat root_dir_stat = {};
-    if (stat(MINI_KVM_FS_ROOT_PATH, &root_dir_stat) == -1) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    int32_t root_dir_fd = 0, fs_exists = -1, pid_file = 0, pid = 0;
+    char *pidfile_name = NULL;
+    struct stat dir_stat = {};
+
+    if (stat(MINI_KVM_FS_ROOT_PATH, &dir_stat) == -1) {
         if (mkdir(MINI_KVM_FS_ROOT_PATH, 0700) < -1) {
             ERROR("failed to create %s (%s)", MINI_KVM_FS_ROOT_PATH, strerror(errno));
             return MINI_KVM_FAILED_FS_SETUP;
         }
     }
 
-    int root_dir_fs = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
-    mkdirat(root_dir_fs, name, 0700);
-
-    kvm->fs_fd = openat(root_dir_fs, name, O_DIRECTORY | O_RDONLY);
     kvm->fs_path = malloc(sizeof(char) * (strlen(name) + strlen(MINI_KVM_FS_ROOT_PATH) + 2));
     sprintf(kvm->fs_path, "%s/%s", MINI_KVM_FS_ROOT_PATH, name);
 
-    char *pidfile_name = malloc(sizeof(char) * (strlen(name) + 4 + 1));
-    sprintf(pidfile_name, "%s.pid", name);
-    int vm_pid_file = openat(kvm->fs_fd, pidfile_name, O_CREAT | O_TRUNC | O_WRONLY,
-                             S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
-    if (vm_pid_file < 0) {
-        ERROR("failed to create %s pidfile (%s)", name, strerror(errno));
-        return MINI_KVM_FAILED_FS_SETUP;
+    fs_exists = stat(kvm->fs_path, &dir_stat);
+    root_dir_fd = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
+    mkdirat(root_dir_fd, name, 0700);
+    kvm->fs_fd = openat(root_dir_fd, name, O_DIRECTORY | O_RDONLY);
+    if (kvm->fs_fd < 0) {
+        ERROR("failed to create %s (%s)", kvm->fs_path, strerror(errno));
+        ret = MINI_KVM_FAILED_FS_SETUP;
+        goto close_main_dir;
     }
-    int mainpid = getpid();
-    write(vm_pid_file, &mainpid, sizeof(int));
 
-    close(vm_pid_file);
-    close(root_dir_fs);
+    pidfile_name = malloc(sizeof(char) * (strlen(name) + 4 + 1));
+    sprintf(pidfile_name, "%s.pid", name);
+
+    if (fs_exists == 0) {
+        pid_file = openat(kvm->fs_fd, pidfile_name, O_RDONLY);
+        if (pid_file > 0) {
+            read(pid_file, &pid, sizeof(int));
+            if (kill(pid, 0) == 0) {
+                ERROR("a virtual machine with the same name is already running");
+                ret = MINI_KVM_FAILED_FS_SETUP;
+                close(pid_file);
+                goto clean;
+            } else {
+                close(pid_file);
+            }
+        }
+    }
+
+    pid_file = openat(kvm->fs_fd, pidfile_name, O_CREAT | O_TRUNC | O_WRONLY,
+                      S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH);
+    if (pid_file < 0) {
+        ERROR("failed to create %s pidfile (%s)", name, strerror(errno));
+        ret = MINI_KVM_FAILED_FS_SETUP;
+        goto clean;
+    }
+    pid = getpid();
+    write(pid_file, &pid, sizeof(int));
+
+    close(pid_file);
+clean:
     free(pidfile_name);
+close_main_dir:
+    close(root_dir_fd);
 
-    return MINI_KVM_SUCCESS;
+    return ret;
 }
 
 int mini_kvm_run(int argc, char **argv) {
@@ -212,14 +243,8 @@ int mini_kvm_run(int argc, char **argv) {
 
     ret = mini_kvm_setup_kvm(kvm, args.mem_size);
     if (ret != 0) {
-        goto clean;
+        goto clean_kvm;
     }
-
-    ret = load_kernel(kvm, &args, 0);
-    if (ret != 0) {
-        goto clean;
-    }
-    INFO("kernel loaded in guest memory");
 
     // if vcpu number has not been specified by the user, mini_kvm set it to at least one
     if (args.vcpu == 0) {
@@ -228,45 +253,54 @@ int mini_kvm_run(int argc, char **argv) {
     for (uint32_t i = 0; i < args.vcpu; i++) {
         ret = mini_kvm_add_vcpu(kvm);
         if (ret != MINI_KVM_SUCCESS) {
-            goto clean;
+            goto clean_kvm;
         }
 
         ret = mini_kvm_setup_vcpu(kvm, i);
         if (ret != MINI_KVM_SUCCESS) {
-            goto clean;
+            goto clean_fs;
         }
     }
+
+    ret = load_kernel(kvm, &args, 0);
+    if (ret != 0) {
+        goto clean_kvm;
+    }
+    INFO("kernel loaded in guest memory");
 
     if (args.name != NULL && args.name[0] != '\0') {
         kvm->name = malloc(sizeof(char) * (strlen(args.name) + 1));
         strncpy(kvm->name, args.name, strlen(args.name) + 1);
         if (init_filesystem(args.name, kvm)) {
-            goto clean;
+            goto clean_kernel;
         }
         INFO("filesystem initialized for VM %s", args.name);
 
         if (mini_kvm_start_status_thread(kvm)) {
-            goto clean;
+            goto clean_fs;
         }
     }
 
     mini_kvm_vcpu_run(kvm, 0);
 
-clean:
+    // shutdown status thread
+    if (kvm->name != NULL) {
+        // TODO: use a better synchronization mechanism
+        kvm->shutdown_status_thread = true;
+        pthread_join(kvm->status_thread, NULL);
+    }
+
+clean_fs:
+    if (args.name != NULL) {
+        rmrf(kvm->fs_path);
+    }
+
+clean_kernel:
     if (args.kernel_code != NULL) {
         free(args.kernel_code);
     }
 
-    if (args.name != NULL) {
-        // shutdown status thread
-        // TODO: use a better synchronization mechanism
-        kvm->shutdown_status_thread = true;
-        pthread_join(kvm->status_thread, NULL);
-
-        // cleanup filesystem
-        rmrf(kvm->fs_path);
-    }
-
+clean_kvm:
     mini_kvm_clean_kvm(kvm);
 out:
     return ret;
