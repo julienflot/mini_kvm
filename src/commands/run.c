@@ -45,6 +45,11 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
     case 'G':
         unit_scale = 1000000000;
         break;
+    default:
+        if (!mini_kvm_is_number(arg + arg_len - 1, 1)) {
+            TRACE("run:parse_mem unknown unit %s", arg + arg_len - 1);
+            return MINI_KVM_ARGS_FAILED;
+        }
     }
 
     // if not unit was provided, we do not need to remove the last char
@@ -55,7 +60,7 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
     mini_kvm_to_number(arg, arg_len - offset, mem);
     *mem *= unit_scale;
 
-    return 0;
+    return MINI_KVM_SUCCESS;
 }
 
 void run_print_help() {
@@ -92,7 +97,7 @@ int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
 
         case 'm':
             ret = parse_mem(optarg, &args->mem_size);
-            if (ret < 0) {
+            if (ret != 0) {
                 ERROR("failed to parse mem argument : %s", optarg);
             }
             break;
