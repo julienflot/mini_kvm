@@ -72,8 +72,9 @@ void run_print_help() {
     printf("\t--help/-h: print this message\n");
 }
 
-int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
-    int ret = 0, index = 0;
+MiniKVMError run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
+    MiniKVMError ret = 0;
+    int32_t index = 0;
     char c = 0;
     FILE *kernel_file = NULL;
     uint32_t name_len = 0;
@@ -143,7 +144,7 @@ int run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
     return ret;
 }
 
-static int32_t load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
+static MiniKVMError load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
     if (kvm == NULL || args == NULL) {
         ERROR("kvm or args are initialized, unable to load kernel in guest memory");
         return MINI_KVM_INTERNAL_ERROR;
@@ -165,7 +166,7 @@ static int32_t load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
     return MINI_KVM_SUCCESS;
 }
 
-int32_t init_filesystem(char *name, Kvm *kvm) {
+MiniKVMError init_filesystem(char *name, Kvm *kvm) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
     int32_t root_dir_fd = 0, fs_exists = -1, pid_file = 0, pid = 0;
     char *pidfile_name = NULL;
@@ -228,8 +229,8 @@ close_main_dir:
     return ret;
 }
 
-int mini_kvm_run(int argc, char **argv) {
-    int ret = 0;
+MiniKVMError mini_kvm_run(int argc, char **argv) {
+    MiniKVMError ret = 0;
     Kvm *kvm = NULL;
     MiniKvmRunArgs args = {0};
 

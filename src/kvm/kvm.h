@@ -1,6 +1,7 @@
 #ifndef MINI_KVM_STRUCT
 #define MINI_KVM_STRUCT
 
+#include "utils/errors.h"
 #include <inttypes.h>
 #include <linux/kvm.h>
 #include <pthread.h>
@@ -44,11 +45,11 @@ typedef struct Kvm {
     VMState state;
 } Kvm;
 
-int32_t mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
+MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
 void mini_kvm_set_signals();
 void mini_kvm_clean_kvm(Kvm *kvm);
-int32_t mini_kvm_add_vcpu(Kvm *kvm);
-int32_t mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id);
-int32_t mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
+MiniKVMError mini_kvm_add_vcpu(Kvm *kvm);
+MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id);
+MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
 
 #endif /* MINI_KVM_STRUCT */

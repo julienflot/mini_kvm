@@ -25,7 +25,7 @@ void native_cpuid(int32_t function, uint32_t *out) {
                  : "memory");
 }
 
-int check_cpu_vendor(MiniKVMCPUVendor v) {
+int32_t check_cpu_vendor(MiniKVMCPUVendor v) {
     char name[VENDOR_ID_LEN];
     native_cpuid(0, cpuid);
 
@@ -37,25 +37,25 @@ int check_cpu_vendor(MiniKVMCPUVendor v) {
     return strncmp(vendor_name[v], name, VENDOR_ID_LEN) == 0;
 }
 
-int32_t mini_kvm_is_number(const char *str, size_t n) {
+MiniKVMError mini_kvm_is_number(const char *str, size_t n) {
     if (str == NULL || strlen(str) == 0) {
-        return 0;
+        return MINI_KVM_SUCCESS;
     }
 
     size_t index = 0;
     while (str[index] != '\0' && index < n) {
         if (str[index] < '0' || str[index] > '9') {
-            return 0;
+            return MINI_KVM_SUCCESS;
         }
         index++;
     }
 
-    return 1;
+    return MINI_KVM_INTERNAL_ERROR;
 }
 
-int32_t mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
+MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
     if (!mini_kvm_is_number(str, n)) {
-        return -1;
+        return MINI_KVM_INTERNAL_ERROR;
     }
 
     int32_t index = n - 1;
@@ -66,11 +66,12 @@ int32_t mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
         exponent *= 10;
     }
 
-    return 0;
+    return MINI_KVM_SUCCESS;
 }
 
-int32_t mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
-    int32_t index = 0, ret = MINI_KVM_SUCCESS;
+MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    int32_t index = 0;
     uint64_t raw_list_len = strlen(raw_list), final = 0;
 
     if (raw_list == NULL || raw_list[0] == '\0') {

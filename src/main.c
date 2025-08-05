@@ -10,8 +10,8 @@ const MiniKVMCommand commands[] = {
 
 void print_help() { printf("mini_kvm <run|pause|resume|status>\n"); }
 
-int handle_command(int argc, char **argv) {
-    int cmd_idx = 0;
+MiniKVMError handle_command(int32_t argc, char **argv) {
+    int32_t cmd_idx = 0;
     char *name = NULL;
     while ((name = commands[cmd_idx].name) != NULL) {
         if (strncmp(name, argv[0], strlen(name)) == 0) {
@@ -27,7 +27,7 @@ int handle_command(int argc, char **argv) {
     return MINI_KVM_UNRECOGNIZED_COMMAND;
 }
 
-int main(int argc, char **argv) {
+int32_t main(int32_t argc, char **argv) {
     logger_init(NULL);
 
     // TODO: do a better check

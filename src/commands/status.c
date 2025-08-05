@@ -34,8 +34,9 @@ static void status_print_help() {
     printf("\t--vcpus/-v: specify a target VCPU list\n");
 }
 
-static int status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
-    int32_t ret = MINI_KVM_SUCCESS, index = 0, name_len = 0;
+static MiniKVMError status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    int32_t index = 0, name_len = 0;
     char c = 0;
 
     while (c != -1 && ret != MINI_KVM_ARGS_FAILED) {
@@ -74,7 +75,7 @@ static int status_parse_args(int argc, char **argv, MiniKvmStatusArgs *args) {
     return ret;
 }
 
-static int32_t status_open_dir(const char *path) {
+static MiniKVMError status_open_dir(const char *path) {
     int32_t root_fs_dir = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
     if (root_fs_dir < 0) {
         return -MINI_KVM_INTERNAL_ERROR;
@@ -87,7 +88,7 @@ static int32_t status_open_dir(const char *path) {
     return vm_fs_dir;
 }
 
-static int32_t status_send_command(MiniKvmStatusArgs *args, MiniKvmStatusResult *res) {
+static MiniKVMError status_send_command(MiniKvmStatusArgs *args, MiniKvmStatusResult *res) {
     struct sockaddr_un addr;
     int32_t sock = 0, ret = MINI_KVM_SUCCESS;
     socklen_t socket_size = sizeof(struct sockaddr_un);
@@ -138,9 +139,9 @@ cleanup:
     return ret;
 }
 
-int32_t mini_kvm_status(int argc, char **argv) {
-    int32_t ret = MINI_KVM_SUCCESS, vm_pid = -1, bytes_read = 0;
-    int32_t vm_dir = -1, pidfile = -1;
+MiniKVMError mini_kvm_status(int argc, char **argv) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    int32_t vm_dir = -1, pidfile = -1, vm_pid = -1, bytes_read = 0;
     char *pidfile_name = NULL;
     MiniKvmStatusArgs args = {0};
     MiniKvmStatusResult res = {0};
@@ -253,8 +254,8 @@ cleanup:
     return NULL;
 }
 
-int32_t mini_kvm_start_status_thread(Kvm *kvm) {
-    int32_t ret = MINI_KVM_SUCCESS;
+MiniKVMError mini_kvm_start_status_thread(Kvm *kvm) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
 
     kvm->shutdown_status_thread = false;
     ret = pthread_create(&kvm->status_thread, NULL, status_thread_func, (void *)kvm);
@@ -266,8 +267,8 @@ int32_t mini_kvm_start_status_thread(Kvm *kvm) {
     return ret;
 }
 
-int32_t mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
-                                       MiniKvmStatusResult *res) {
+MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                            MiniKvmStatusResult *res) {
     pthread_mutex_lock(&kvm->lock);
     switch (cmd->type) {
     case MINI_KVM_COMMAND_NONE: // do nothing

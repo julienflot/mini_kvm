@@ -21,14 +21,14 @@
 #define TSS_ADDR 0xfffbd000
 
 // TODO: look for every needed for this application
-static const int MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
+static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY"};
 
 static volatile sig_atomic_t sig_status = 0;
 static void set_signal_status(int signo) { sig_status = signo; }
 
-int mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
-    int kvm_version;
+MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
+    int32_t kvm_version;
 
     kvm->kvm_fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
     if (kvm->kvm_fd < 0) {
@@ -127,7 +127,7 @@ static void mini_kvm_append_vcpu(Kvm *kvm, VCpu *vcpu) {
     kvm->vcpu_count++;
 }
 
-int32_t mini_kvm_add_vcpu(Kvm *kvm) {
+MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
     if (kvm == NULL) {
         ERROR("cannot create vcpu VCPU without initializing KVM");
         return MINI_KVM_FAILED_VCPU_CREATION;
@@ -159,12 +159,15 @@ int32_t mini_kvm_add_vcpu(Kvm *kvm) {
     return MINI_KVM_SUCCESS;
 }
 
-int32_t mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
+MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
+    VCpu *vcpu = NULL;
+    int32_t ret = 0;
+
     if (id > kvm->vcpu_count) {
         return MINI_KVM_INTERNAL_ERROR;
     }
-    VCpu *vcpu = &kvm->vcpus[id];
-    int32_t ret = 0;
+
+    vcpu = &kvm->vcpus[id];
 
     memset(&vcpu->regs, 0, sizeof(struct kvm_regs));
     vcpu->regs.rip = 0;
@@ -200,15 +203,17 @@ int32_t mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
     return MINI_KVM_SUCCESS;
 }
 
-int32_t mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
+MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
+    VCpu *vcpu = NULL;
+    int32_t shutdown = 0;
+    MiniKVMError ret = 0;
+
     if (kvm == NULL || ((uint32_t)id > kvm->vcpu_count)) {
         return MINI_KVM_INTERNAL_ERROR;
     }
 
+    vcpu = &kvm->vcpus[id];
     kvm->state = MINI_KVM_RUNNING;
-
-    VCpu *vcpu = &kvm->vcpus[id];
-    int32_t shutdown = 0, ret = 0;
 
     mini_kvm_set_signals();
     INFO("starting running vm");

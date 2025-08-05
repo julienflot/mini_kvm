@@ -20,4 +20,4 @@ int nftw_callback(const char *fpath, const struct stat *st, int typeflags, struc
     return ret;
 }
 
-int rmrf(const char *path) { return nftw(path, nftw_callback, 10, FTW_DEPTH | FTW_PHYS); }
+int32_t rmrf(const char *path) { return nftw(path, nftw_callback, 10, FTW_DEPTH | FTW_PHYS); }
