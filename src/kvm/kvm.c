@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
@@ -23,6 +24,8 @@
 // TODO: look for every needed for this application
 static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY"};
+
+static const char *VM_STATE_STR[] = {"paused", "running"};
 
 static volatile sig_atomic_t sig_status = 0;
 static void set_signal_status(int signo) { sig_status = signo; }
@@ -295,4 +298,23 @@ void mini_kvm_clean_kvm(Kvm *kvm) {
     close(kvm->kvm_fd);
     close(kvm->vm_fd);
     free(kvm);
+}
+
+const char *mini_kvm_vm_state_str(VMState state) { return VM_STATE_STR[state]; }
+
+void mini_kvm_print_regs(struct kvm_regs *regs) {
+    fprintf(stdout, "rax 0x%016llx\trbx 0x%016llx\trcx 0x%016llx\trdx 0x%016llx\n", regs->rax,
+            regs->rbx, regs->rcx, regs->rdx);
+    fprintf(stdout, "r8  0x%016llx\tr9  0x%016llx\tr10 0x%016llx\tr11 0x%016llx\n", regs->r8,
+            regs->r9, regs->r10, regs->r11);
+    fprintf(stdout, "r12 0x%016llx\tr13 0x%016llx\tr14 0x%016llx\tr15 0x%016llx\n", regs->r12,
+            regs->r13, regs->r14, regs->r15);
+    fprintf(stdout, "rsp 0x%016llx\trbp 0x%016llx\trip 0x%016llx\trflags 0x%016llx\n", regs->rsp,
+            regs->rbp, regs->rip, regs->rflags);
+    fprintf(stdout, "rdi 0x%016llx\trsi 0x%016llx\n", regs->rdi, regs->rsi);
+}
+
+void mini_kvm_print_sregs(struct kvm_sregs *sregs) {
+    fprintf(stdout, "cr0 0x%016llx\tcr2 0x%016llx\tcr3 0x%016llx\tcr4 0x%016llx\n", sregs->cr0,
+            sregs->cr2, sregs->cr3, sregs->cr4);
 }

@@ -52,4 +52,8 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm);
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id);
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
 
+const char *mini_kvm_vm_state_str(VMState state);
+void mini_kvm_print_regs(struct kvm_regs *regs);
+void mini_kvm_print_sregs(struct kvm_sregs *sregs);
+
 #endif /* MINI_KVM_STRUCT */

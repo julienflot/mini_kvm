@@ -27,6 +27,8 @@ typedef struct MiniKvmStatusCommand {
 } MiniKvmStatusCommand;
 
 typedef struct MiniKvmStatusResult {
+    MiniKvmStatusCommandType cmd_type;
+    uint64_t vcpus;
     struct kvm_regs regs[MINI_KVM_MAX_VCPUS];
     struct kvm_sregs sregs[MINI_KVM_MAX_VCPUS];
     VMState state;
