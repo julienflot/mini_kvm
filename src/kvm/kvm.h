@@ -7,7 +7,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 
-typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING } VMState;
+typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING, MINI_KVM_SHUTDOWN } VMState;
 
 typedef struct VCpu {
     int32_t fd;
@@ -19,6 +19,7 @@ typedef struct VCpu {
     struct kvm_regs regs;
     struct kvm_sregs sregs;
 
+    pthread_t thread;
     int32_t running;
 } VCpu;
 
@@ -39,17 +40,16 @@ typedef struct Kvm {
     VCpu *vcpus;
 
     pthread_mutex_t lock;
-    pthread_t status_thread;
-    bool shutdown_status_thread;
+    int32_t sock;
 
     VMState state;
 } Kvm;
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
-void mini_kvm_set_signals();
 void mini_kvm_clean_kvm(Kvm *kvm);
 MiniKVMError mini_kvm_add_vcpu(Kvm *kvm);
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id);
+MiniKVMError mini_kvm_start_vm(Kvm *vm);
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
 
 const char *mini_kvm_vm_state_str(VMState state);

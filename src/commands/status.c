@@ -5,7 +5,6 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,10 +15,13 @@
 
 #include "commands.h"
 #include "constants.h"
+#include "ipc/ipc.h"
 #include "kvm/kvm.h"
 #include "utils/errors.h"
 #include "utils/logger.h"
 #include "utils/utils.h"
+
+static socklen_t SOCKET_SIZE = sizeof(struct sockaddr_un);
 
 static const struct option opts_def[] = {{"name", required_argument, NULL, 'n'},
                                          {"vcpu", required_argument, NULL, 'v'},
@@ -75,76 +77,40 @@ static MiniKVMError status_parse_args(int argc, char **argv, MiniKvmStatusArgs *
     return ret;
 }
 
-static MiniKVMError status_open_dir(const char *path) {
-    int32_t root_fs_dir = open(MINI_KVM_FS_ROOT_PATH, O_DIRECTORY | O_RDONLY);
-    if (root_fs_dir < 0) {
-        return -MINI_KVM_INTERNAL_ERROR;
-    }
-    int32_t vm_fs_dir = openat(root_fs_dir, path, O_DIRECTORY | O_RDONLY);
-    if (vm_fs_dir < 0) {
-        return -MINI_KVM_INTERNAL_ERROR;
-    }
-
-    return vm_fs_dir;
-}
-
 static MiniKVMError status_build_command(MiniKvmStatusArgs *args, MiniKvmStatusCommand *cmd) {
     if (args->regs) {
-        cmd->type = MINI_KVM_COMMAND_REGS;
+        cmd->type = MINI_KVM_COMMAND_SHOW_REGS;
         cmd->vcpus = args->vcpus;
     } else {
-        cmd->type = MINI_KVM_COMMAND_RUNNING;
+        cmd->type = MINI_KVM_COMMAND_SHOW_STATE;
     }
 
     return MINI_KVM_SUCCESS;
 }
 
 static MiniKVMError status_send_command(MiniKvmStatusArgs *args, MiniKvmStatusResult *res) {
-    struct sockaddr_un addr;
+    struct sockaddr_un addr = {0};
     int32_t sock = 0, ret = MINI_KVM_SUCCESS;
-    socklen_t socket_size = sizeof(struct sockaddr_un);
     MiniKvmStatusCommand cmd = {0};
-    char *socket_name = NULL;
 
-    addr.sun_family = AF_UNIX;
-    socket_name =
-        malloc(sizeof(char) * (strlen(args->name) * 2 + strlen(MINI_KVM_FS_ROOT_PATH) + 8));
-    sprintf(socket_name, "%s/%s/%s.sock", MINI_KVM_FS_ROOT_PATH, args->name, args->name);
-    strncpy(addr.sun_path, socket_name, sizeof(addr.sun_path));
+    if ((sock = mini_kvm_ipc_connect(args->name, &addr)) < 0) {
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto out;
+    }
 
     if (status_build_command(args, &cmd) != MINI_KVM_SUCCESS) {
         ret = MINI_KVM_STATUS_COMMAND_FAILED;
-        goto cleanup;
-    }
-
-    if ((sock = socket(addr.sun_family, SOCK_STREAM, 0)) < 0) {
-        ERROR("unable to create status socket (%s)", strerror(errno));
-        ret = MINI_KVM_INTERNAL_ERROR;
-        goto cleanup;
-    }
-
-    if (connect(sock, (struct sockaddr *)&addr, socket_size)) {
-        ERROR("unable to connect status socket %s (%s)", args->name, strerror(errno));
-        ret = MINI_KVM_INTERNAL_ERROR;
         goto close_socket;
     }
 
-    if (send(sock, &cmd, sizeof(cmd), 0) < 0) {
-        ERROR("unable to send status socket %s (%s)", args->name, strerror(errno));
-        ret = MINI_KVM_INTERNAL_ERROR;
-        goto close_socket;
-    }
-
-    if (recv(sock, res, sizeof(MiniKvmStatusResult), 0) == -1) {
-        ERROR("unable to recv msg on %s (%s)", args->name, strerror(errno));
-        ret = MINI_KVM_INTERNAL_ERROR;
+    if (mini_kvm_ipc_send_cmd(sock, &cmd, res)) {
+        ret = MINI_KVM_STATUS_COMMAND_FAILED;
         goto close_socket;
     }
 
 close_socket:
     close(sock);
-cleanup:
-    free(socket_name);
+out:
     return ret;
 }
 
@@ -152,10 +118,10 @@ void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *
     switch (res->cmd_type) {
     case MINI_KVM_COMMAND_NONE:
         break;
-    case MINI_KVM_COMMAND_RUNNING:
+    case MINI_KVM_COMMAND_SHOW_STATE:
         TRACE("%s is %s", args->name, mini_kvm_vm_state_str(res->state));
         break;
-    case MINI_KVM_COMMAND_REGS:
+    case MINI_KVM_COMMAND_SHOW_REGS:
         for (uint64_t index = 0; index < MINI_KVM_MAX_VCPUS; index++) {
             if ((res->vcpus & (1UL << index)) == 0) {
                 continue;
@@ -167,13 +133,13 @@ void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *
             mini_kvm_print_sregs(&res->sregs[index]);
         }
         break;
+    default:
+        break;
     }
 }
 
 MiniKVMError mini_kvm_status(int argc, char **argv) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
-    int32_t vm_dir = -1, pidfile = -1, vm_pid = -1, bytes_read = 0;
-    char *pidfile_name = NULL;
     MiniKvmStatusArgs args = {0};
     MiniKvmStatusResult res = {0};
 
@@ -188,24 +154,8 @@ MiniKVMError mini_kvm_status(int argc, char **argv) {
         goto clean;
     }
 
-    vm_dir = status_open_dir(args.name);
-    if (vm_dir < 0) {
-        INFO("status: VM %s is not running", args.name);
-        goto clean;
-    }
-
-    pidfile_name = malloc(sizeof(char) * (strlen(args.name) + 5));
-    sprintf(pidfile_name, "%s.pid", args.name);
-    pidfile = openat(vm_dir, pidfile_name, O_RDONLY);
-    if (pidfile < 0) {
-        ERROR("status: unable to find %s pidfile", args.name);
-        goto clean;
-    }
-
-    vm_pid = -1;
-    bytes_read = read(pidfile, &vm_pid, sizeof(int32_t));
-    if (bytes_read <= 0 || kill(vm_pid, 0) != 0) {
-        INFO("status: VM %s is not running", args.name);
+    if (mini_kvm_check_vm(args.name) < 0) {
+        INFO("status: VM %s is not running, exiting ...", args.name);
         goto clean;
     }
 
@@ -218,97 +168,74 @@ MiniKVMError mini_kvm_status(int argc, char **argv) {
 
 clean:
     if (args.name != NULL) {
-        free(pidfile_name);
-        close(pidfile);
-        close(vm_dir);
         free(args.name);
     }
 
     return ret;
 }
 
-static void *status_thread_func(void *args) {
-    struct sockaddr_un socket_addr = {0}, remote_addr = {0};
-    socklen_t socket_size = sizeof(struct sockaddr_un);
-    int32_t status_socket = 0, remote_sock = 0;
-    char *socket_name = NULL;
-    MiniKvmStatusCommand cmd = {0};
-    MiniKvmStatusResult res = {0};
-    Kvm *kvm = (Kvm *)args;
-
-    socket_addr.sun_family = AF_UNIX;
-    socket_name = malloc(sizeof(char) * (strlen(kvm->fs_path) + 7 + strlen(kvm->name)));
-    sprintf(socket_name, "%s/%s.sock", kvm->fs_path, kvm->name);
-    strncpy(socket_addr.sun_path, socket_name, sizeof(socket_addr.sun_path));
-
-    status_socket = socket(socket_addr.sun_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
-    if (status_socket < 0) {
-        ERROR("unable to create status socket (%s)", strerror(errno));
-        goto cleanup;
-    }
-
-    if (bind(status_socket, (struct sockaddr *)&socket_addr, socket_size) < 0) {
-        ERROR("unable to bind to socket (%s)", strerror(errno));
-        goto close_socket;
-    }
-
-    if (listen(status_socket, 0) < 0) {
-        ERROR("unable to listen to socket (%s)", strerror(errno));
-        goto close_socket;
-    }
-
-    while (!kvm->shutdown_status_thread) {
-        memset(&cmd, 0, sizeof(cmd));
-
-        remote_sock = accept(status_socket, (struct sockaddr *)&remote_addr, &socket_size);
-        if (remote_sock < 0 && errno == EAGAIN) {
-            usleep(100000);
-            continue;
-        }
-
-        if (remote_sock < 0) {
-            ERROR("unable to accept connection (%s)", strerror(errno));
-            continue;
-        }
-        recv(remote_sock, &cmd, sizeof(cmd), 0);
-
-        memset(&res, 0, sizeof(res));
-        mini_kvm_status_handle_command(kvm, &cmd, &res);
-
-        send(remote_sock, &res, sizeof(res), 0);
-    }
-
-close_socket:
-    close(status_socket);
-cleanup:
-    free(socket_name);
-
-    return NULL;
-}
-
-MiniKVMError mini_kvm_start_status_thread(Kvm *kvm) {
+MiniKVMError mini_kvm_status_create_socket(Kvm *kvm, struct sockaddr_un *addr) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
 
-    kvm->shutdown_status_thread = false;
-    ret = pthread_create(&kvm->status_thread, NULL, status_thread_func, (void *)kvm);
-    if (ret != 0) {
-        ERROR("unable to start status thread (%s)", strerror(errno));
-        ret = MINI_KVM_INTERNAL_ERROR;
+    addr->sun_family = AF_UNIX;
+    sprintf(addr->sun_path, "%s/%s.sock", kvm->fs_path, kvm->name);
+
+    kvm->sock = socket(addr->sun_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    if (kvm->sock < 0) {
+        ERROR("unable to create status socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto out;
     }
 
+    if (bind(kvm->sock, (struct sockaddr *)addr, SOCKET_SIZE) < 0) {
+        ERROR("unable to bind to socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto close_socket;
+    }
+
+    if (listen(kvm->sock, 0) < 0) {
+        ERROR("unable to listen to socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto close_socket;
+    }
+
+    goto out;
+
+close_socket:
+    close(kvm->sock);
+out:
     return ret;
+}
+
+int32_t mini_kvm_status_receive_cmd(Kvm *kvm) {
+    struct sockaddr_un remote_addr = {0};
+    int32_t remote_sock = 0;
+
+    remote_sock = accept(kvm->sock, (struct sockaddr *)&remote_addr, &SOCKET_SIZE);
+    if (remote_sock < 0 && errno == EAGAIN) {
+        return 0;
+    }
+
+    if (remote_sock < 0) {
+        ERROR("unable to accept connection (%s)", strerror(errno));
+        return -1;
+    }
+
+    return remote_sock;
 }
 
 MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                             MiniKvmStatusResult *res) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+
     pthread_mutex_lock(&kvm->lock);
     switch (cmd->type) {
     case MINI_KVM_COMMAND_NONE: // do nothing
         break;
-    case MINI_KVM_COMMAND_RUNNING:
+    case MINI_KVM_COMMAND_SHOW_STATE:
         res->state = kvm->state;
         break;
-    case MINI_KVM_COMMAND_REGS:
+    case MINI_KVM_COMMAND_SHOW_REGS:
         for (uint64_t index = 0; index < kvm->vcpu_count; index++) {
             if (!(cmd->vcpus & (1UL << index))) {
                 continue;
@@ -317,18 +244,27 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
             VCpu vcpu = kvm->vcpus[index];
             if (ioctl(vcpu.fd, KVM_GET_REGS, &res->regs)) {
                 ERROR("failed to vcpu %u registers (%s)", index, strerror(errno));
-                return MINI_KVM_INTERNAL_ERROR;
+                ret = MINI_KVM_INTERNAL_ERROR;
+                goto out;
             }
             if (ioctl(vcpu.fd, KVM_GET_SREGS, &res->sregs)) {
                 ERROR("failed to vcpu %u sregisters (%s)", index, strerror(errno));
-                return MINI_KVM_INTERNAL_ERROR;
+                ret = MINI_KVM_INTERNAL_ERROR;
+                goto out;
             }
         }
+        break;
+    case MINI_KVM_COMMAND_PAUSE:
+        kvm->state = MINI_KVM_PAUSED;
+        break;
+    case MINI_KVM_COMMAND_RESUME:
+        kvm->state = MINI_KVM_RUNNING;
         break;
     }
     res->cmd_type = cmd->type;
     res->vcpus = cmd->vcpus;
-    pthread_mutex_unlock(&kvm->lock);
 
-    return MINI_KVM_SUCCESS;
+out:
+    pthread_mutex_unlock(&kvm->lock);
+    return ret;
 }

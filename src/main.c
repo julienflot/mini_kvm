@@ -5,8 +5,11 @@
 #include "utils/errors.h"
 #include "utils/logger.h"
 
-const MiniKVMCommand commands[] = {
-    {"run", mini_kvm_run}, {"status", mini_kvm_status}, {NULL, NULL}};
+const MiniKVMCommand commands[] = {{"pause", mini_kvm_pause},
+                                   {"resume", mini_kvm_resume},
+                                   {"run", mini_kvm_run},
+                                   {"status", mini_kvm_status},
+                                   {NULL, NULL}};
 
 void print_help() { printf("mini_kvm <run|pause|resume|status>\n"); }
 

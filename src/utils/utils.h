@@ -12,6 +12,9 @@ typedef enum CPUVendor {
 
 int32_t check_cpu_vendor(MiniKVMCPUVendor v);
 
+MiniKVMError mini_kvm_open_vm_fs(const char *path);
+int32_t mini_kvm_check_vm(char *name);
+
 // === STRING UTILS ===
 
 // return true is str is a number (1234 => 1, hello => 0, 1234.1234 => 0)

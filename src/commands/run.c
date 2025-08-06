@@ -1,4 +1,5 @@
 #include "run.h"
+#include "commands.h"
 #include "commands/status.h"
 #include "constants.h"
 #include "kvm/kvm.h"
@@ -19,7 +20,11 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 #include <unistd.h>
+
+static volatile sig_atomic_t sig_status = 0;
+static void set_signal_status(int signo) { sig_status = signo; }
 
 static const struct option opts_def[] = {
     {"name", required_argument, NULL, 'n'},   {"log", optional_argument, NULL, 'l'},
@@ -166,7 +171,7 @@ static MiniKVMError load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
     return MINI_KVM_SUCCESS;
 }
 
-MiniKVMError init_filesystem(char *name, Kvm *kvm) {
+static MiniKVMError init_filesystem(char *name, Kvm *kvm) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
     int32_t root_dir_fd = 0, fs_exists = -1, pid_file = 0, pid = 0;
     char *pidfile_name = NULL;
@@ -229,6 +234,57 @@ close_main_dir:
     return ret;
 }
 
+static void run_set_signals() {
+    if (signal(SIGINT, set_signal_status) == SIG_ERR) {
+        WARN("unable to register to signal SIGINT");
+    }
+
+    if (signal(SIGTERM, set_signal_status) == SIG_ERR) {
+        WARN("unable to register to signal SIGINT");
+    }
+}
+
+static MiniKVMError run_main_loop(Kvm *kvm) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    int32_t remote_sock = 0;
+    struct sockaddr_un socket_addr = {0};
+    MiniKvmStatusCommand cmd = {0};
+    MiniKvmStatusResult res = {0};
+
+    // create main ipc socket
+    ret = mini_kvm_status_create_socket(kvm, &socket_addr);
+    if (ret != MINI_KVM_SUCCESS) {
+        goto out;
+    }
+
+    // start vm
+    ret = mini_kvm_start_vm(kvm);
+    if (ret != MINI_KVM_SUCCESS) {
+        goto out;
+    }
+
+    while (kvm->state != MINI_KVM_SHUTDOWN) {
+        remote_sock = mini_kvm_status_receive_cmd(kvm);
+        if (remote_sock > 0) {
+            while (recv(remote_sock, &cmd, sizeof(MiniKvmStatusCommand), 0) != 0) {
+                mini_kvm_status_handle_command(kvm, &cmd, &res);
+                send(remote_sock, &res, sizeof(res), 0);
+            }
+        } else if (remote_sock < 0) {
+            WARN("unable to receive command");
+        }
+
+        if (sig_status == SIGINT || sig_status == SIGTERM) {
+            kvm->state = MINI_KVM_SHUTDOWN;
+        }
+
+        usleep(100000);
+    }
+
+out:
+    return ret;
+}
+
 MiniKVMError mini_kvm_run(int argc, char **argv) {
     MiniKVMError ret = 0;
     Kvm *kvm = NULL;
@@ -281,20 +337,11 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
             goto clean_kernel;
         }
         INFO("filesystem initialized for VM %s", args.name);
-
-        if (mini_kvm_start_status_thread(kvm)) {
-            goto clean_fs;
-        }
     }
 
-    mini_kvm_vcpu_run(kvm, 0);
+    run_set_signals();
 
-    // shutdown status thread
-    if (kvm->name != NULL) {
-        // TODO: use a better synchronization mechanism
-        kvm->shutdown_status_thread = true;
-        pthread_join(kvm->status_thread, NULL);
-    }
+    run_main_loop(kvm);
 
 clean_fs:
     if (args.name != NULL) {

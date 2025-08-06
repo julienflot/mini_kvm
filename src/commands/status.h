@@ -4,6 +4,8 @@
 #include <inttypes.h>
 #include <linux/kvm.h>
 #include <stdbool.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include "constants.h"
 #include "kvm/kvm.h"
@@ -17,8 +19,10 @@ typedef struct MiniKvmStatusArgs {
 
 typedef enum MiniKvmStatusCommandType {
     MINI_KVM_COMMAND_NONE = 0,
-    MINI_KVM_COMMAND_RUNNING,
-    MINI_KVM_COMMAND_REGS
+    MINI_KVM_COMMAND_PAUSE,
+    MINI_KVM_COMMAND_RESUME,
+    MINI_KVM_COMMAND_SHOW_STATE,
+    MINI_KVM_COMMAND_SHOW_REGS
 } MiniKvmStatusCommandType;
 
 typedef struct MiniKvmStatusCommand {
@@ -34,7 +38,8 @@ typedef struct MiniKvmStatusResult {
     VMState state;
 } MiniKvmStatusResult;
 
-MiniKVMError mini_kvm_start_status_thread(Kvm *kvm);
+MiniKVMError mini_kvm_status_create_socket(Kvm *kvm, struct sockaddr_un *addr);
+int32_t mini_kvm_status_receive_cmd(Kvm *kvm);
 MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                             MiniKvmStatusResult *res);
 

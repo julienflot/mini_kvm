@@ -2,7 +2,6 @@
 #include <fcntl.h>
 #include <linux/kvm.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,14 +20,16 @@
 
 #define TSS_ADDR 0xfffbd000
 
+struct VcpuRunArgs {
+    Kvm *kvm;
+    VCpu *vcpu;
+};
+
 // TODO: look for every needed for this application
 static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY"};
 
-static const char *VM_STATE_STR[] = {"paused", "running"};
-
-static volatile sig_atomic_t sig_status = 0;
-static void set_signal_status(int signo) { sig_status = signo; }
+static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     int32_t kvm_version;
@@ -99,16 +100,6 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     kvm->state = MINI_KVM_PAUSED;
 
     return MINI_KVM_SUCCESS;
-}
-
-void mini_kvm_set_signals() {
-    if (signal(SIGINT, set_signal_status) == SIG_ERR) {
-        WARN("unable to register to signal SIGINT");
-    }
-
-    if (signal(SIGTERM, set_signal_status) == SIG_ERR) {
-        WARN("unable to register to signal SIGINT");
-    }
 }
 
 static void mini_kvm_append_vcpu(Kvm *kvm, VCpu *vcpu) {
@@ -206,28 +197,45 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
     return MINI_KVM_SUCCESS;
 }
 
-MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
-    VCpu *vcpu = NULL;
-    int32_t shutdown = 0;
-    MiniKVMError ret = 0;
+MiniKVMError mini_kvm_start_vm(Kvm *kvm) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
 
-    if (kvm == NULL || ((uint32_t)id > kvm->vcpu_count)) {
+    if (kvm == NULL || kvm->vcpu_count == 0) {
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    vcpu = &kvm->vcpus[id];
-    kvm->state = MINI_KVM_RUNNING;
+    for (uint32_t vcpu_index = 0; vcpu_index < kvm->vcpu_count; vcpu_index++) {
+        ret = mini_kvm_vcpu_run(kvm, vcpu_index);
+        if (ret != MINI_KVM_SUCCESS) {
+            break;
+        }
+    }
 
-    mini_kvm_set_signals();
     INFO("starting running vm");
-    while (!shutdown) {
+    kvm->state = MINI_KVM_RUNNING;
+    return ret;
+}
+
+static void *kvm_vcpu_thread_run(void *args) {
+    struct VcpuRunArgs *vcpu_args = (struct VcpuRunArgs *)args;
+    Kvm *kvm = vcpu_args->kvm;
+    VCpu *vcpu = vcpu_args->vcpu;
+    MiniKVMError ret = 0;
+
+    while (kvm->state != MINI_KVM_SHUTDOWN) {
+
+        if (kvm->state == MINI_KVM_PAUSED) {
+            usleep(10000);
+            continue;
+        }
+
         vcpu->running = 1;
         ret = ioctl(vcpu->fd, KVM_RUN);
         vcpu->running = 0;
         if (ret < 0) {
             ERROR("failed to run VM (%s)", strerror(errno));
             ret = MINI_KVM_FAILED_RUN;
-            shutdown = 1;
+            kvm->state = MINI_KVM_SHUTDOWN;
         }
 
         int32_t exit_reason = vcpu->kvm_run->exit_reason;
@@ -250,35 +258,50 @@ MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
             break;
         case KVM_EXIT_SHUTDOWN:
             ERROR("KVM: exit shutdown");
-            shutdown = 1;
+            kvm->state = MINI_KVM_SHUTDOWN;
             break;
         case KVM_EXIT_INTERNAL_ERROR:
             ERROR("KVM: exit internal error");
             break;
         case KVM_EXIT_FAIL_ENTRY:
             ERROR("KVM: exit failed entry");
-            shutdown = 1;
+            kvm->state = MINI_KVM_SHUTDOWN;
             break;
         case KVM_EXIT_UNKNOWN:
             ERROR("KVM: exit unknown");
-            shutdown = 1;
+            kvm->state = MINI_KVM_SHUTDOWN;
             break;
         default:
             TRACE("KVM: exit unhandled %d", exit_reason);
             break;
         }
+    }
+    return NULL;
+}
 
-        if (sig_status == SIGINT || sig_status == SIGTERM) {
-            shutdown = 1;
-        }
+MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    struct VcpuRunArgs *args = malloc(sizeof(struct VcpuRunArgs));
+    VCpu *vcpu = &kvm->vcpus[id];
+
+    args->kvm = kvm;
+    args->vcpu = vcpu;
+    ret = pthread_create(&vcpu->thread, NULL, kvm_vcpu_thread_run, args);
+    if (ret != 0) {
+        ERROR("unable to create thread for vcpu %d", id);
+        ret = MINI_KVM_FAILED_RUN;
     }
 
-    return MINI_KVM_SUCCESS;
+    return ret;
 }
 
 void mini_kvm_clean_kvm(Kvm *kvm) {
     if (kvm->vcpu_count > 0) {
         for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
+            VCpu vcpu = kvm->vcpus[i];
+            if (vcpu.thread) {
+                pthread_join(kvm->vcpus[i].thread, NULL);
+            }
             munmap(kvm->vcpus[i].kvm_run, kvm->vcpus[i].mem_region_size);
             close(kvm->vcpus[i].fd);
         }
