@@ -93,7 +93,7 @@ MiniKVMError mini_kvm_pause(int argc, char **argv) {
         goto close_socket;
     }
 
-    INFO("VM %s successfuly closed", args.name);
+    INFO("VM %s successfuly paused", args.name);
 
 close_socket:
     close(sock);
