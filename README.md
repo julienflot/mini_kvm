@@ -2,9 +2,18 @@
 
 ## Build and Run
 
-Just run in the root folder of the project to build the project
+This project use CMake as it main build system so to build the project run the following commands :
+
 ```sh
-make 
+mkdir build && cd build 
+cmake ..
+make
+```
+
+To build a release version :
+```sh
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
 ```
 
 ## Invocations 
@@ -13,10 +22,10 @@ make
 
 ```
 --name name: set the name of the VM.
---disk path: path to the disk image.
---cpus number: number of vcpu to allocate.
+--vcpus number: number of vcpu to allocate.
 --mem size: ram quantity allocated.
---log [path]: log internal inforamtion
+--kernel path: path to a kernel image.
+--log [path]: log internal inforamtion.
 ```
 
 ### `mini_kvm pause`
@@ -28,16 +37,23 @@ name: name of the VM.
 ### `mini_kvm resume`
 
 ```
-name: name of the VM.
+--name: name of the VM.
 ```
 
-### `mini_kvm show`
+### `mini_kvm shutdown`
 
 ```
+--name: name of the VM.
+```
+
+### `mini_kvm status`
+
+With no arguments other than the name, this sub command will print the current state of the VM.
+
+```
+--name: name of the VM.
 --regs: show registers.
---vcpus: show vcpus threads ID.
---state: show VM state (stopped, running, paused).
---stats: show VM stats.
+--vcpus: select which vcpus the command will target.
 ```
 
 # References :
