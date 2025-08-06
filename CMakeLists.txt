@@ -16,6 +16,7 @@ add_library(${PROJECT_NAME} STATIC
     ${MINI_KVM_SRC_DIR}/commands/status.c 
     ${MINI_KVM_SRC_DIR}/commands/pause.c 
     ${MINI_KVM_SRC_DIR}/commands/resume.c 
+    ${MINI_KVM_SRC_DIR}/commands/shutdown.c 
     ${MINI_KVM_SRC_DIR}/kvm/kvm.c 
     ${MINI_KVM_SRC_DIR}/ipc/ipc.c 
 )

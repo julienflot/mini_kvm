@@ -260,6 +260,9 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
     case MINI_KVM_COMMAND_RESUME:
         kvm->state = MINI_KVM_RUNNING;
         break;
+    case MINI_KVM_COMMAND_SHUTDOWN:
+        kvm->state = MINI_KVM_SHUTDOWN;
+        break;
     }
     res->cmd_type = cmd->type;
     res->vcpus = cmd->vcpus;

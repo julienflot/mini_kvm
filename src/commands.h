@@ -14,5 +14,6 @@ MiniKVMError mini_kvm_run(int argc, char **argv);
 MiniKVMError mini_kvm_status(int argc, char **argv);
 MiniKVMError mini_kvm_pause(int argc, char **argv);
 MiniKVMError mini_kvm_resume(int argc, char **argv);
+MiniKVMError mini_kvm_shutdown(int argc, char **argv);
 
 #endif /* MINI_KVM_COMMANDS_H */
