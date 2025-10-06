@@ -234,15 +234,12 @@ static void *kvm_vcpu_thread_run(void *args) {
         vcpu->running = 0;
         if (ret < 0) {
             ERROR("failed to run VM (%s)", strerror(errno));
-            ret = MINI_KVM_FAILED_RUN;
             kvm->state = MINI_KVM_SHUTDOWN;
+            break;
         }
 
         int32_t exit_reason = vcpu->kvm_run->exit_reason;
         switch (exit_reason) {
-        case KVM_EXIT_DEBUG:
-            TRACE("KVM: exit debug");
-            break;
         case KVM_EXIT_HLT:
             TRACE("KVM: exit hlt");
             break;
@@ -250,18 +247,13 @@ static void *kvm_vcpu_thread_run(void *args) {
             TRACE("KVM: exit io");
             sleep(1);
             break;
-        case KVM_EXIT_MMIO:
-            TRACE("KVM: exit mmio");
-            break;
-        case KVM_EXIT_INTR:
-            TRACE("KVM: exit intr");
-            break;
         case KVM_EXIT_SHUTDOWN:
             ERROR("KVM: exit shutdown");
             kvm->state = MINI_KVM_SHUTDOWN;
             break;
         case KVM_EXIT_INTERNAL_ERROR:
             ERROR("KVM: exit internal error");
+            kvm->state = MINI_KVM_SHUTDOWN;
             break;
         case KVM_EXIT_FAIL_ENTRY:
             ERROR("KVM: exit failed entry");
@@ -276,6 +268,7 @@ static void *kvm_vcpu_thread_run(void *args) {
             break;
         }
     }
+
     return NULL;
 }
 
