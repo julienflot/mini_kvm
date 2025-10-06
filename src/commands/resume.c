@@ -84,7 +84,7 @@ MiniKVMError mini_kvm_resume(int argc, char **argv) {
         goto close_socket;
     }
 
-    if (res.state == MINI_KVM_RUNNING) {
+    if (res.state == MINI_KVM_RUNNING || res.state == MINI_KVM_SHUTDOWN) {
         goto close_socket;
     }
 

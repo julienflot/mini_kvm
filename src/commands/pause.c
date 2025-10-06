@@ -84,7 +84,7 @@ MiniKVMError mini_kvm_pause(int argc, char **argv) {
         goto close_socket;
     }
 
-    if (res.state == MINI_KVM_PAUSED) {
+    if (res.state == MINI_KVM_PAUSED || res.state == MINI_KVM_SHUTDOWN) {
         goto close_socket;
     }
 
