@@ -135,10 +135,6 @@ MiniKVMError run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
             break;
 
         case 'h':
-            run_print_help();
-            ret = 1;
-            break;
-
         case '?':
             run_print_help();
             ret = MINI_KVM_ARGS_FAILED;
@@ -266,7 +262,8 @@ static MiniKVMError run_main_loop(Kvm *kvm) {
     while (kvm->state != MINI_KVM_SHUTDOWN) {
         remote_sock = mini_kvm_status_receive_cmd(kvm);
         if (remote_sock > 0) {
-            while (recv(remote_sock, &cmd, sizeof(MiniKvmStatusCommand), 0) != 0) {
+            // commands are handled until the socket is closed by the remote
+            while (recv(remote_sock, &cmd, sizeof(MiniKvmStatusCommand), 0) > 0) {
                 mini_kvm_status_handle_command(kvm, &cmd, &res);
                 send(remote_sock, &res, sizeof(res), 0);
             }
