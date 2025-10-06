@@ -25,10 +25,9 @@ struct VcpuRunArgs {
     VCpu *vcpu;
 };
 
-// TODO: look for every needed for this application
+// TODO: look for every capabilites needed for this application
 static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY"};
-
 static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
@@ -201,6 +200,7 @@ MiniKVMError mini_kvm_start_vm(Kvm *kvm) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
 
     if (kvm == NULL || kvm->vcpu_count == 0) {
+        ERROR("0 VCPUs was configured, unable to start VM ...");
         return MINI_KVM_INTERNAL_ERROR;
     }
 
