@@ -13,9 +13,11 @@ add_library(mini_bios
 )
 
 # ASSEMBLE BIOS
-add_custom_command(
+add_custom_target(
+    bios
+    ALL
+    BYPRODUCTS ${BIOS_FILE}
+    DEPENDS mini_bios
     COMMAND ld --oformat binary -T ${LD_SCRIPT} -m elf_i386 ${MINI_BIOS_LIB} -o ${BIOS_FILE}
-    OUTPUT ${BIOS_FILE}
     COMMENT "Compiling ${BIOS_FILE}"
 )
-add_custom_target(bios ALL DEPENDS ${BIOS_FILE} ${MINI_BIOS_LIB})
