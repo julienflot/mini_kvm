@@ -85,7 +85,7 @@ MiniKVMError run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
     uint32_t name_len = 0;
 
     while (c != -1 && ret != MINI_KVM_ARGS_FAILED) {
-        c = getopt_long(argc, argv, "l::v:d:m:n:h", opts_def, &index);
+        c = getopt_long(argc, argv, "l::v:d:m:n:k:h", opts_def, &index);
 
         // TODO: enable support for disk option
         switch (c) {
