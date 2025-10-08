@@ -1,14 +1,25 @@
 ENTRY(_start)
+OUTPUT_FORMAT(binary)
+OUTPUT(bios.img)
 
 SECTIONS
 {
-    . = 0x10000;
-    __guest_start = .;
-    __text_start = .;
-    .text : {
-        KEEP(*(.text.boot))
-        *(.text)
+    . = 0x0;
+    __bios_start = .;
+
+    .text : ALIGN(8) {
+        __text_start = .;
+        KEEP(*(.text._start));
+        *(.text);
+        __text_end = .;
     }
+
+    .data : ALIGN(8) {
+        __data_start = .;
+        *(.data);
+        __data_end = .;
+    }
+    
     . = ALIGN(4096);
-    __guest_end = .;
+    __bios_end = .;
 }

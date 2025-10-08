@@ -1,10 +1,21 @@
+.intel_syntax noprefix
+.code16
+
+.text
+
 .globl _start
-    .code32
-
 _start:
-    xor %eax, %eax # set ax to 0
-
+    mov bx, 0 
 loop:
-    out %eax, $0x10
-    inc %eax
+    mov ax, [msg + bx]
+    cmp ax, 0
+    je end
+    out 0x10, ax
+    inc bx
     jmp loop
+
+end:
+    hlt
+
+.data
+msg: .ascii "Hello world\n\0"

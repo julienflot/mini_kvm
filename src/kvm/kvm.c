@@ -196,6 +196,27 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
     return MINI_KVM_SUCCESS;
 }
 
+static MiniKVMError mini_kvm_handle_io(struct kvm_run *kvm_run) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    char *p = (char *)kvm_run;
+
+    if (kvm_run->io.direction == KVM_EXIT_IO_OUT) {
+        switch (kvm_run->io.port) {
+        case 0x10:
+            write(1, p + kvm_run->io.data_offset, 1);
+            fflush(stdout);
+            break;
+
+        default:
+            ERROR("mini_kvm: unhandled out io port on port %x", kvm_run->io.port);
+            ret = MINI_KVM_INTERNAL_ERROR;
+            break;
+        }
+    }
+
+    return ret;
+}
+
 MiniKVMError mini_kvm_start_vm(Kvm *kvm) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
 
@@ -242,10 +263,14 @@ static void *kvm_vcpu_thread_run(void *args) {
         switch (exit_reason) {
         case KVM_EXIT_HLT:
             TRACE("KVM: exit hlt");
+            kvm->state = MINI_KVM_SHUTDOWN;
+            ioctl(vcpu->fd, KVM_GET_REGS, &vcpu->regs);
+            mini_kvm_print_regs(&vcpu->regs);
             break;
         case KVM_EXIT_IO:
-            TRACE("KVM: exit io");
-            sleep(1);
+            if (mini_kvm_handle_io(vcpu->kvm_run) != MINI_KVM_SUCCESS) {
+                kvm->state = MINI_KVM_SHUTDOWN;
+            }
             break;
         case KVM_EXIT_SHUTDOWN:
             ERROR("KVM: exit shutdown");
