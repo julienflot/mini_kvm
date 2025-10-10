@@ -161,7 +161,7 @@ static MiniKVMError load_kernel(Kvm *kvm, MiniKvmRunArgs *args, uint64_t addr) {
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    uint64_t *start = kvm->mem + addr;
+    uint64_t *start = (uint64_t *)((uint8_t *)kvm->mem + addr);
     memcpy(start, args->kernel_code, args->kernel_size);
 
     return MINI_KVM_SUCCESS;
