@@ -101,10 +101,9 @@ MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    int32_t index = n - 1;
-    size_t exponent = 1;
+    int32_t index = n - 1, exponent = 1;
     while (index >= 0) {
-        *dst += ((uint32_t)(str[index] - '0') * exponent);
+        *dst += ((uint64_t)(str[index] - '0') * exponent);
         index--;
         exponent *= 10;
     }
@@ -122,7 +121,7 @@ MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
     }
 
     while (raw_list[index] != '\0') {
-        uint32_t offset = 1, current = 0;
+        uint64_t offset = 1, current = 0;
         while (index + offset < raw_list_len && mini_kvm_is_number(raw_list + index, offset)) {
             offset++;
         }
