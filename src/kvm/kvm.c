@@ -78,7 +78,7 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
         ERROR("failed to allocate VM memory (%s)", strerror(errno));
         return MINI_KVM_FAILED_ALLOCATION;
     }
-    INFO("VM memory allocated");
+    INFO("VM memory allocated (%lu bytes)", kvm->mem_size);
 
     kvm->u_region.slot = 0;
     kvm->u_region.flags = 0;
@@ -152,7 +152,7 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
     return MINI_KVM_SUCCESS;
 }
 
-MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
+MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
     VCpu *vcpu = NULL;
     int32_t ret = 0;
 
@@ -163,8 +163,9 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id) {
     vcpu = &kvm->vcpus[id];
 
     memset(&vcpu->regs, 0, sizeof(struct kvm_regs));
-    vcpu->regs.rip = 0;
+    vcpu->regs.rip = start_addr;
     vcpu->regs.rsp = kvm->mem_size - 1;
+    vcpu->regs.rbp = vcpu->regs.rsp;
     vcpu->regs.rflags = 0b01;
     ret = ioctl(vcpu->fd, KVM_SET_REGS, &vcpu->regs);
     if (ret < 0) {
@@ -202,7 +203,7 @@ static MiniKVMError mini_kvm_handle_io(struct kvm_run *kvm_run) {
 
     if (kvm_run->io.direction == KVM_EXIT_IO_OUT) {
         switch (kvm_run->io.port) {
-        case 0x10:
+        case 0x3f8:
             write(1, p + kvm_run->io.data_offset, 1);
             fflush(stdout);
             break;
@@ -279,6 +280,8 @@ static void *kvm_vcpu_thread_run(void *args) {
         case KVM_EXIT_INTERNAL_ERROR:
             ERROR("KVM: exit internal error");
             kvm->state = MINI_KVM_SHUTDOWN;
+            ioctl(vcpu->fd, KVM_GET_REGS, &vcpu->regs);
+            mini_kvm_print_regs(&vcpu->regs);
             break;
         case KVM_EXIT_FAIL_ENTRY:
             ERROR("KVM: exit failed entry");

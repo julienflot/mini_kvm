@@ -4,7 +4,7 @@ OUTPUT(bios.img)
 
 SECTIONS
 {
-    . = 0x0;
+    . = 0x1000;
     __bios_start = .;
 
     .text : ALIGN(8) {

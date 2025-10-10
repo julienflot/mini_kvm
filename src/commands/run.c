@@ -315,13 +315,13 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
             goto clean_kvm;
         }
 
-        ret = mini_kvm_setup_vcpu(kvm, i);
+        ret = mini_kvm_setup_vcpu(kvm, i, 4096);
         if (ret != MINI_KVM_SUCCESS) {
             goto clean_fs;
         }
     }
 
-    ret = load_kernel(kvm, &args, 0);
+    ret = load_kernel(kvm, &args, 4096);
     if (ret != 0) {
         goto clean_kvm;
     }
