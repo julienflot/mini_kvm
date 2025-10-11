@@ -5,9 +5,13 @@
 #include <inttypes.h>
 #include <linux/kvm.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 
 typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING, MINI_KVM_SHUTDOWN } VMState;
+
+#define SIGVMPAUSE (SIGRTMIN + 0)
+#define SIGVMRESUME (SIGRTMIN + 1)
 
 typedef struct VCpu {
     int32_t fd;
@@ -51,6 +55,8 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm);
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr);
 MiniKVMError mini_kvm_start_vm(Kvm *vm);
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
+
+void mini_kvm_send_sig(Kvm *kvm, int32_t signum);
 
 const char *mini_kvm_vm_state_str(VMState state);
 void mini_kvm_print_regs(struct kvm_regs *regs);

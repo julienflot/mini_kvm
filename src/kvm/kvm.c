@@ -152,6 +152,14 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
     return MINI_KVM_SUCCESS;
 }
 
+static void mini_kvm_vcpu_signal_handler(int signum) {
+    if (signum == SIGVMPAUSE) {
+        TRACE("pause signal received");
+    } else if (signum == SIGVMRESUME) {
+        TRACE("resume signal received");
+    }
+}
+
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
     VCpu *vcpu = NULL;
     int32_t ret = 0;
@@ -193,6 +201,9 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
     INFO("VCPU %d sregs set", id);
+
+    signal(SIGVMPAUSE, mini_kvm_vcpu_signal_handler);
+    signal(SIGVMRESUME, mini_kvm_vcpu_signal_handler);
 
     return MINI_KVM_SUCCESS;
 }
@@ -244,16 +255,16 @@ static void *kvm_vcpu_thread_run(void *args) {
     VCpu *vcpu = vcpu_args->vcpu;
     MiniKVMError ret = 0;
 
+    vcpu->running = 1;
     while (kvm->state != MINI_KVM_SHUTDOWN) {
 
+        // TODO: find a better to wait for the resume signal
         if (kvm->state == MINI_KVM_PAUSED) {
             usleep(10000);
             continue;
         }
 
-        vcpu->running = 1;
         ret = ioctl(vcpu->fd, KVM_RUN);
-        vcpu->running = 0;
         if (ret < 0) {
             ERROR("failed to run VM (%s)", strerror(errno));
             kvm->state = MINI_KVM_SHUTDOWN;
@@ -282,6 +293,9 @@ static void *kvm_vcpu_thread_run(void *args) {
             kvm->state = MINI_KVM_SHUTDOWN;
             ioctl(vcpu->fd, KVM_GET_REGS, &vcpu->regs);
             mini_kvm_print_regs(&vcpu->regs);
+            break;
+        case KVM_EXIT_INTR:
+            TRACE("KVM: exit INTR");
             break;
         case KVM_EXIT_FAIL_ENTRY:
             ERROR("KVM: exit failed entry");
@@ -314,6 +328,16 @@ MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
     }
 
     return ret;
+}
+
+void mini_kvm_send_sig(Kvm *kvm, int32_t signum) {
+    if (kvm->vcpu_count == 0) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
+        pthread_kill(kvm->vcpus[i].thread, signum);
+    }
 }
 
 void mini_kvm_clean_kvm(Kvm *kvm) {

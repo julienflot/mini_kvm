@@ -5,6 +5,7 @@
 #include <getopt.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -256,9 +257,11 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
         break;
     case MINI_KVM_COMMAND_PAUSE:
         kvm->state = MINI_KVM_PAUSED;
+        mini_kvm_send_sig(kvm, SIGVMPAUSE);
         break;
     case MINI_KVM_COMMAND_RESUME:
         kvm->state = MINI_KVM_RUNNING;
+        mini_kvm_send_sig(kvm, SIGVMPAUSE);
         break;
     case MINI_KVM_COMMAND_SHUTDOWN:
         kvm->state = MINI_KVM_SHUTDOWN;
