@@ -61,5 +61,7 @@ void mini_kvm_send_sig(Kvm *kvm, int32_t signum);
 const char *mini_kvm_vm_state_str(VMState state);
 void mini_kvm_print_regs(struct kvm_regs *regs);
 void mini_kvm_print_sregs(struct kvm_sregs *sregs);
+void mini_kvm_dump_mem(Kvm *kvm, uint64_t start, uint64_t end, uint32_t word_size,
+                       uint32_t byte_per_line);
 
 #endif /* MINI_KVM_STRUCT */

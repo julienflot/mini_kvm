@@ -276,8 +276,6 @@ static void *kvm_vcpu_thread_run(void *args) {
         case KVM_EXIT_HLT:
             TRACE("KVM: exit hlt");
             kvm->state = MINI_KVM_SHUTDOWN;
-            ioctl(vcpu->fd, KVM_GET_REGS, &vcpu->regs);
-            mini_kvm_print_regs(&vcpu->regs);
             break;
         case KVM_EXIT_IO:
             if (mini_kvm_handle_io(vcpu->kvm_run) != MINI_KVM_SUCCESS) {
@@ -385,4 +383,37 @@ void mini_kvm_print_regs(struct kvm_regs *regs) {
 void mini_kvm_print_sregs(struct kvm_sregs *sregs) {
     fprintf(stdout, "cr0 0x%016llx\tcr2 0x%016llx\tcr3 0x%016llx\tcr4 0x%016llx\n", sregs->cr0,
             sregs->cr2, sregs->cr3, sregs->cr4);
+}
+
+void mini_kvm_dump_mem(Kvm *kvm, uint64_t start, uint64_t end, uint32_t word_size,
+                       uint32_t bytes_per_line) {
+    uint32_t nb_lines = 0;
+    uint8_t *start_ptr = NULL;
+
+    // align start and end to word_size
+    start = start - start % word_size;
+    end = (end % word_size == 0) ? end : end - end % word_size + word_size;
+    start_ptr = ((uint8_t *)kvm->mem + start);
+
+    end = (kvm->mem_size < (int64_t)end) ? (uint64_t)kvm->mem_size : end;
+    nb_lines = (end - start) / (bytes_per_line) + ((end - start) % (bytes_per_line) != 0);
+
+    printf("mem dump: @%lu -> @%lu\n", start, end);
+    for (uint32_t line = 0; line < nb_lines; line++) {
+        printf("0x%08lx\t", start + line * (bytes_per_line));
+
+        for (uint32_t word = 0; word < bytes_per_line; word += word_size) {
+            uint32_t offset = word + bytes_per_line * line;
+            if (offset + start > end) {
+                break;
+            }
+
+            for (uint32_t word_offset = 0; word_offset < word_size; word_offset++) {
+                printf("%02hx", start_ptr[offset + word_offset]);
+            }
+            printf(" ");
+        }
+
+        printf("\n");
+    }
 }
