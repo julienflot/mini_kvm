@@ -265,6 +265,7 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
         break;
     case MINI_KVM_COMMAND_SHUTDOWN:
         kvm->state = MINI_KVM_SHUTDOWN;
+        mini_kvm_send_sig(kvm, SIGVMPAUSE);
         break;
     }
     res->cmd_type = cmd->type;

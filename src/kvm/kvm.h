@@ -12,6 +12,7 @@ typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING, MINI_KVM_SHUTDOWN 
 
 #define SIGVMPAUSE (SIGRTMIN + 0)
 #define SIGVMRESUME (SIGRTMIN + 1)
+#define SIGVMSHUTDOWN (SIGRTMIN + 2)
 
 typedef struct VCpu {
     int32_t fd;

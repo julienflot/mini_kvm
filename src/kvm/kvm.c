@@ -258,7 +258,8 @@ static void *kvm_vcpu_thread_run(void *args) {
     vcpu->running = 1;
     while (kvm->state != MINI_KVM_SHUTDOWN) {
 
-        // TODO: find a better to wait for the resume signal
+        // TODO: find a better to wait for the resume signal and better way to synchrnoize threads
+        // on state transition
         if (kvm->state == MINI_KVM_PAUSED) {
             usleep(10000);
             continue;
