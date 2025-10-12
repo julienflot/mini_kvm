@@ -273,6 +273,7 @@ static MiniKVMError run_main_loop(Kvm *kvm) {
 
         if (sig_status == SIGINT || sig_status == SIGTERM) {
             kvm->state = MINI_KVM_SHUTDOWN;
+            mini_kvm_send_sig(kvm, SIGVMSHUTDOWN);
         }
 
         usleep(100000);

@@ -204,6 +204,7 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
 
     signal(SIGVMPAUSE, mini_kvm_vcpu_signal_handler);
     signal(SIGVMRESUME, mini_kvm_vcpu_signal_handler);
+    signal(SIGVMSHUTDOWN, mini_kvm_vcpu_signal_handler);
 
     return MINI_KVM_SUCCESS;
 }

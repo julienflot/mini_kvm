@@ -316,7 +316,7 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
         break;
     case MINI_KVM_COMMAND_SHUTDOWN:
         kvm->state = MINI_KVM_SHUTDOWN;
-        mini_kvm_send_sig(kvm, SIGVMPAUSE);
+        mini_kvm_send_sig(kvm, SIGVMSHUTDOWN);
         break;
     case MINI_KVM_COMMAND_NONE: // do nothing
     case MINI_KVM_COMMAND_COUNT:
