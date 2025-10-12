@@ -21,8 +21,9 @@ int32_t mini_kvm_check_vm(char *name);
 MiniKVMError mini_kvm_is_number(const char *str, size_t n);
 MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst);
 
+// the input list should be a comma separated list of integers (1,2,3 is a valid list)
+MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *list_size);
 // parse a raw cpu list and convert it to a cpu mask
-// the input list should a comma separated list of integers (1,2,3 is a valid list)
 MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list);
 
 #endif /*  MINI_VKM_UTILS_H */

@@ -11,24 +11,32 @@
 #include "kvm/kvm.h"
 #include "utils/errors.h"
 
-typedef struct MiniKvmStatusArgs {
-    char *name;
-    bool regs;
-    uint64_t vcpus;
-} MiniKvmStatusArgs;
-
 typedef enum MiniKvmStatusCommandType {
     MINI_KVM_COMMAND_NONE = 0,
     MINI_KVM_COMMAND_PAUSE,
     MINI_KVM_COMMAND_RESUME,
     MINI_KVM_COMMAND_SHUTDOWN,
     MINI_KVM_COMMAND_SHOW_STATE,
-    MINI_KVM_COMMAND_SHOW_REGS
+    MINI_KVM_COMMAND_SHOW_REGS,
+    MINI_KVM_COMMAND_DUMP_MEM,
+    MINI_KVM_COMMAND_COUNT,
 } MiniKvmStatusCommandType;
+
+typedef struct MiniKvmStatusArgs {
+    char *name;
+    bool regs;
+    uint64_t *mem_range;
+    uint64_t mem_range_size;
+    uint64_t vcpus;
+    uint64_t cmd_count;
+    MiniKvmStatusCommandType cmds[MINI_KVM_COMMAND_COUNT];
+} MiniKvmStatusArgs;
 
 typedef struct MiniKvmStatusCommand {
     MiniKvmStatusCommandType type;
     uint64_t vcpus;
+    int64_t mem_range[4];
+    int32_t pid;
 } MiniKvmStatusCommand;
 
 typedef struct MiniKvmStatusResult {

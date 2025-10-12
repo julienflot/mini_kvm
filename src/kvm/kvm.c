@@ -386,7 +386,7 @@ void mini_kvm_print_sregs(struct kvm_sregs *sregs) {
             sregs->cr2, sregs->cr3, sregs->cr4);
 }
 
-void mini_kvm_dump_mem(Kvm *kvm, uint64_t start, uint64_t end, uint32_t word_size,
+void mini_kvm_dump_mem(Kvm *kvm, int32_t out, uint64_t start, uint64_t end, uint32_t word_size,
                        uint32_t bytes_per_line) {
     uint32_t nb_lines = 0;
     uint8_t *start_ptr = NULL;
@@ -399,9 +399,9 @@ void mini_kvm_dump_mem(Kvm *kvm, uint64_t start, uint64_t end, uint32_t word_siz
     end = (kvm->mem_size < (int64_t)end) ? (uint64_t)kvm->mem_size : end;
     nb_lines = (end - start) / (bytes_per_line) + ((end - start) % (bytes_per_line) != 0);
 
-    printf("mem dump: @%lu -> @%lu\n", start, end);
+    dprintf(out, "mem dump: @%lu -> @%lu\n", start, end);
     for (uint32_t line = 0; line < nb_lines; line++) {
-        printf("0x%08lx\t", start + line * (bytes_per_line));
+        dprintf(out, "0x%08lx\t", start + line * (bytes_per_line));
 
         for (uint32_t word = 0; word < bytes_per_line; word += word_size) {
             uint32_t offset = word + bytes_per_line * line;
@@ -410,11 +410,11 @@ void mini_kvm_dump_mem(Kvm *kvm, uint64_t start, uint64_t end, uint32_t word_siz
             }
 
             for (uint32_t word_offset = 0; word_offset < word_size; word_offset++) {
-                printf("%02hx", start_ptr[offset + word_offset]);
+                dprintf(out, "%02hx", start_ptr[offset + word_offset]);
             }
-            printf(" ");
+            dprintf(out, " ");
         }
 
-        printf("\n");
+        dprintf(out, "\n");
     }
 }

@@ -111,14 +111,16 @@ MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
     return MINI_KVM_SUCCESS;
 }
 
-MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
+MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *list_size) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
-    int32_t index = 0;
-    uint64_t raw_list_len = strlen(raw_list), final = 0;
+    uint64_t index = 0, raw_list_len = strlen(raw_list), list_capacity = 3;
 
-    if (raw_list == NULL || raw_list[0] == '\0') {
-        return ret;
+    if (list == NULL || list_size == NULL) {
+        return MINI_KVM_INTERNAL_ERROR;
     }
+
+    *list = malloc(sizeof(uint64_t) * list_capacity);
+    *list_size = 0;
 
     while (raw_list[index] != '\0') {
         uint64_t offset = 1, current = 0;
@@ -138,10 +140,39 @@ MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
             return ret;
         }
 
-        final |= 1 << current;
+        // append current to the list
+        if (*list_size >= list_capacity) {
+            uint64_t *tmp = *list;
+            list_capacity *= 2;
+            *list = malloc(sizeof(uint64_t) * list_capacity);
+            memcpy(*list, tmp, sizeof(uint64_t) * *list_size);
+            free(tmp);
+        }
+        (*list)[*list_size] = current;
+        *list_size += 1;
+
         index += offset;
     }
 
-    *cpu_list = final;
+    return ret;
+}
+
+MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+    uint64_t *list = NULL;
+    uint64_t list_size = 0;
+
+    if (raw_list == NULL || raw_list[0] == '\0') {
+        return ret;
+    }
+    if (mini_kvm_parse_int_list(raw_list, &list, &list_size) != MINI_KVM_SUCCESS) {
+        return MINI_KVM_INTERNAL_ERROR;
+    }
+
+    for (uint32_t i = 0; i < list_size; i++) {
+        *cpu_list |= 1 << list[i];
+    }
+
+    free(list);
     return ret;
 }
