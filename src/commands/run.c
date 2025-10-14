@@ -2,6 +2,7 @@
 #include "commands.h"
 #include "commands/status.h"
 #include "constants.h"
+#include "ipc/ipc.h"
 #include "kvm/kvm.h"
 #include "utils/errors.h"
 #include "utils/filesystem.h"
@@ -248,7 +249,7 @@ static MiniKVMError run_main_loop(Kvm *kvm) {
     MiniKvmStatusResult res = {0};
 
     // create main ipc socket
-    ret = mini_kvm_status_create_socket(kvm, &socket_addr);
+    ret = mini_kvm_ipc_create_socket(kvm, &socket_addr);
     if (ret != MINI_KVM_SUCCESS) {
         goto out;
     }
@@ -260,7 +261,7 @@ static MiniKVMError run_main_loop(Kvm *kvm) {
     }
 
     while (kvm->state != MINI_KVM_SHUTDOWN) {
-        remote_sock = mini_kvm_status_receive_cmd(kvm);
+        remote_sock = mini_kvm_ipc_receive_cmd(kvm);
         if (remote_sock > 0) {
             // commands are handled until the socket is closed by the remote
             while (recv(remote_sock, &cmd, sizeof(MiniKvmStatusCommand), 0) > 0) {

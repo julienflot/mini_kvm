@@ -47,8 +47,6 @@ typedef struct MiniKvmStatusResult {
     VMState state;
 } MiniKvmStatusResult;
 
-MiniKVMError mini_kvm_status_create_socket(Kvm *kvm, struct sockaddr_un *addr);
-int32_t mini_kvm_status_receive_cmd(Kvm *kvm);
 MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                             MiniKvmStatusResult *res);
 

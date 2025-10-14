@@ -12,6 +12,56 @@
 
 static socklen_t SOCKET_SIZE = sizeof(struct sockaddr_un);
 
+int32_t mini_kvm_ipc_create_socket(Kvm *kvm, struct sockaddr_un *addr) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+
+    addr->sun_family = AF_UNIX;
+    sprintf(addr->sun_path, "%s/%s.sock", kvm->fs_path, kvm->name);
+
+    kvm->sock = socket(addr->sun_family, SOCK_STREAM | SOCK_NONBLOCK, 0);
+    if (kvm->sock < 0) {
+        ERROR("unable to create status socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto out;
+    }
+
+    if (bind(kvm->sock, (struct sockaddr *)addr, SOCKET_SIZE) < 0) {
+        ERROR("unable to bind to socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto close_socket;
+    }
+
+    if (listen(kvm->sock, 0) < 0) {
+        ERROR("unable to listen to socket (%s)", strerror(errno));
+        ret = MINI_KVM_FAILED_SOCKET_CREATION;
+        goto close_socket;
+    }
+
+    goto out;
+
+close_socket:
+    close(kvm->sock);
+out:
+    return ret;
+}
+
+int32_t mini_kvm_ipc_receive_cmd(Kvm *kvm) {
+    struct sockaddr_un remote_addr = {0};
+    int32_t remote_sock = 0;
+
+    remote_sock = accept(kvm->sock, (struct sockaddr *)&remote_addr, &SOCKET_SIZE);
+    if (remote_sock < 0 && errno == EAGAIN) {
+        return 0;
+    }
+
+    if (remote_sock < 0) {
+        ERROR("unable to accept connection (%s)", strerror(errno));
+        return -1;
+    }
+
+    return remote_sock;
+}
+
 int32_t mini_kvm_ipc_connect(char *name, struct sockaddr_un *addr) {
     int32_t sock = 0;
 
