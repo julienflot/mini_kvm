@@ -22,6 +22,8 @@
 #include "utils/logger.h"
 #include "utils/utils.h"
 
+typedef MiniKVMError (*CommandHandler)(Kvm *, MiniKvmStatusCommand *, MiniKvmStatusResult *);
+
 static socklen_t SOCKET_SIZE = sizeof(struct sockaddr_un);
 static const int64_t MEM_RANGE_DEFAULTS[] = {0, -1, 2, 16};
 
@@ -264,68 +266,105 @@ int32_t mini_kvm_status_receive_cmd(Kvm *kvm) {
     return remote_sock;
 }
 
-MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
+static MiniKVMError status_handle_cmd_state(Kvm *kvm,
+                                            __attribute__((unused)) MiniKvmStatusCommand *cmd,
                                             MiniKvmStatusResult *res) {
-    MiniKVMError ret = MINI_KVM_SUCCESS;
+    res->state = kvm->state;
+    return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError status_handle_regs(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                       MiniKvmStatusResult *res) {
+    for (uint64_t index = 0; index < kvm->vcpu_count; index++) {
+        if (!(cmd->vcpus & (1UL << index))) {
+            continue;
+        }
+
+        VCpu vcpu = kvm->vcpus[index];
+        if (ioctl(vcpu.fd, KVM_GET_REGS, &res->regs)) {
+            ERROR("failed to vcpu %u registers (%s)", index, strerror(errno));
+            return MINI_KVM_INTERNAL_ERROR;
+        }
+        if (ioctl(vcpu.fd, KVM_GET_SREGS, &res->sregs)) {
+            ERROR("failed to vcpu %u sregisters (%s)", index, strerror(errno));
+            return MINI_KVM_INTERNAL_ERROR;
+        }
+    }
+
+    return MINI_KVM_SUCCESS;
+}
+
+MiniKVMError status_handle_dump_mem(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                    __attribute__((unused)) MiniKvmStatusResult *res) {
     int remote_stdoutfd;
     char remote_stdoutpath[64];
 
-    pthread_mutex_lock(&kvm->lock);
-    switch (cmd->type) {
-    case MINI_KVM_COMMAND_SHOW_STATE:
-        res->state = kvm->state;
-        break;
-    case MINI_KVM_COMMAND_SHOW_REGS:
-        for (uint64_t index = 0; index < kvm->vcpu_count; index++) {
-            if (!(cmd->vcpus & (1UL << index))) {
-                continue;
-            }
-
-            VCpu vcpu = kvm->vcpus[index];
-            if (ioctl(vcpu.fd, KVM_GET_REGS, &res->regs)) {
-                ERROR("failed to vcpu %u registers (%s)", index, strerror(errno));
-                ret = MINI_KVM_INTERNAL_ERROR;
-                goto out;
-            }
-            if (ioctl(vcpu.fd, KVM_GET_SREGS, &res->sregs)) {
-                ERROR("failed to vcpu %u sregisters (%s)", index, strerror(errno));
-                ret = MINI_KVM_INTERNAL_ERROR;
-                goto out;
-            }
-        }
-        break;
-    case MINI_KVM_COMMAND_DUMP_MEM:
-        snprintf(remote_stdoutpath, sizeof(remote_stdoutpath), "/proc/%d/fd/1", cmd->pid);
-        remote_stdoutfd = open(remote_stdoutpath, O_RDWR);
-        if (remote_stdoutfd != -1) {
-            mini_kvm_dump_mem(kvm, remote_stdoutfd, cmd->mem_range[0],
-                              (cmd->mem_range[1] == -1) ? kvm->mem_size : cmd->mem_range[1],
-                              cmd->mem_range[2], cmd->mem_range[3]);
-            close(remote_stdoutfd);
-        } else {
-            ERROR("failed to serve DUMP MEM command (%s)", strerror(errno));
-        }
-        break;
-    case MINI_KVM_COMMAND_PAUSE:
-        kvm->state = MINI_KVM_PAUSED;
-        mini_kvm_send_sig(kvm, SIGVMPAUSE);
-        break;
-    case MINI_KVM_COMMAND_RESUME:
-        kvm->state = MINI_KVM_RUNNING;
-        mini_kvm_send_sig(kvm, SIGVMPAUSE);
-        break;
-    case MINI_KVM_COMMAND_SHUTDOWN:
-        kvm->state = MINI_KVM_SHUTDOWN;
-        mini_kvm_send_sig(kvm, SIGVMSHUTDOWN);
-        break;
-    case MINI_KVM_COMMAND_NONE: // do nothing
-    case MINI_KVM_COMMAND_COUNT:
-        break;
+    snprintf(remote_stdoutpath, sizeof(remote_stdoutpath), "/proc/%d/fd/1", cmd->pid);
+    remote_stdoutfd = open(remote_stdoutpath, O_RDWR);
+    if (remote_stdoutfd != -1) {
+        mini_kvm_dump_mem(kvm, remote_stdoutfd, cmd->mem_range[0],
+                          (cmd->mem_range[1] == -1) ? kvm->mem_size : cmd->mem_range[1],
+                          cmd->mem_range[2], cmd->mem_range[3]);
+        close(remote_stdoutfd);
+    } else {
+        ERROR("failed to serve DUMP MEM command (%s)", strerror(errno));
+        return MINI_KVM_INTERNAL_ERROR;
     }
+
+    close(remote_stdoutfd);
+    return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError status_handle_pause(Kvm *kvm, __attribute__((unused)) MiniKvmStatusCommand *cmd,
+                                        __attribute((unused)) MiniKvmStatusResult *res) {
+    kvm->state = MINI_KVM_PAUSED;
+    mini_kvm_send_sig(kvm, SIGVMPAUSE);
+
+    return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError status_handle_resume(Kvm *kvm,
+                                         __attribute__((unused)) MiniKvmStatusCommand *cmd,
+                                         __attribute((unused)) MiniKvmStatusResult *res) {
+    kvm->state = MINI_KVM_RUNNING;
+    mini_kvm_send_sig(kvm, SIGVMRESUME);
+
+    return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError status_handle_shutdown(Kvm *kvm,
+                                           __attribute__((unused)) MiniKvmStatusCommand *cmd,
+                                           __attribute((unused)) MiniKvmStatusResult *res) {
+    kvm->state = MINI_KVM_SHUTDOWN;
+    mini_kvm_send_sig(kvm, SIGVMSHUTDOWN);
+
+    return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError status_handle_none(__attribute__((unused)) Kvm *kvm,
+                                       __attribute__((unused)) MiniKvmStatusCommand *cmd,
+                                       __attribute((unused)) MiniKvmStatusResult *res) {
+    return MINI_KVM_SUCCESS;
+}
+
+MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
+                                            MiniKvmStatusResult *res) {
+    static const CommandHandler handlers[MINI_KVM_COMMAND_COUNT] = {
+        [MINI_KVM_COMMAND_NONE] = status_handle_none,
+        [MINI_KVM_COMMAND_PAUSE] = status_handle_pause,
+        [MINI_KVM_COMMAND_RESUME] = status_handle_resume,
+        [MINI_KVM_COMMAND_SHUTDOWN] = status_handle_shutdown,
+        [MINI_KVM_COMMAND_SHOW_STATE] = status_handle_cmd_state,
+        [MINI_KVM_COMMAND_SHOW_REGS] = status_handle_regs,
+        [MINI_KVM_COMMAND_DUMP_MEM] = status_handle_dump_mem,
+    };
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+
+    pthread_mutex_lock(&kvm->lock);
+    ret = handlers[cmd->type](kvm, cmd, res);
     res->cmd_type = cmd->type;
     res->vcpus = cmd->vcpus;
-
-out:
     pthread_mutex_unlock(&kvm->lock);
+
     return ret;
 }
