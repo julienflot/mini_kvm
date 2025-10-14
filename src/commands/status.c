@@ -141,6 +141,18 @@ out:
 }
 
 void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *res) {
+    if (res->error != MINI_KVM_SUCCESS) {
+        switch (res->error) {
+        case MINI_KVM_STATUS_CMD_VM_NOT_PAUSED:
+            INFO("VM %s is not paused, please pause the VM before sending request", args->name);
+            break;
+        default:
+            break;
+        }
+
+        return;
+    }
+
     switch (res->cmd_type) {
     case MINI_KVM_COMMAND_NONE:
         break;
@@ -224,6 +236,10 @@ static MiniKVMError status_handle_cmd_state(Kvm *kvm,
 
 static MiniKVMError status_handle_regs(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                        MiniKvmStatusResult *res) {
+    if (kvm->state != MINI_KVM_PAUSED) {
+        return MINI_KVM_STATUS_CMD_VM_NOT_PAUSED;
+    }
+
     for (uint64_t index = 0; index < kvm->vcpu_count; index++) {
         if (!(cmd->vcpus & (1UL << index))) {
             continue;
@@ -247,6 +263,10 @@ MiniKVMError status_handle_dump_mem(Kvm *kvm, MiniKvmStatusCommand *cmd,
                                     __attribute__((unused)) MiniKvmStatusResult *res) {
     int remote_stdoutfd;
     char remote_stdoutpath[64];
+
+    if (kvm->state != MINI_KVM_PAUSED) {
+        return MINI_KVM_STATUS_CMD_VM_NOT_PAUSED;
+    }
 
     snprintf(remote_stdoutpath, sizeof(remote_stdoutpath), "/proc/%d/fd/1", cmd->pid);
     remote_stdoutfd = open(remote_stdoutpath, O_RDWR);
@@ -313,6 +333,7 @@ MiniKVMError mini_kvm_status_handle_command(Kvm *kvm, MiniKvmStatusCommand *cmd,
     ret = handlers[cmd->type](kvm, cmd, res);
     res->cmd_type = cmd->type;
     res->vcpus = cmd->vcpus;
+    res->error = ret;
     pthread_mutex_unlock(&kvm->lock);
 
     return ret;
