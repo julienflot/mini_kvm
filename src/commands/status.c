@@ -279,7 +279,6 @@ MiniKVMError status_handle_dump_mem(Kvm *kvm, MiniKvmStatusCommand *cmd,
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    close(remote_stdoutfd);
     return MINI_KVM_SUCCESS;
 }
 
