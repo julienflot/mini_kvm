@@ -22,6 +22,7 @@ static const struct option opts_def[] = {
 static void resume_print_help() {
     printf("USAGE: mini_kvm resume\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
+    printf("\t--help/-h: print this message\n");
 }
 
 static MiniKVMError resume_parse_args(int argc, char **argv, MiniKvmResumeArgs *args) {
@@ -39,9 +40,6 @@ static MiniKVMError resume_parse_args(int argc, char **argv, MiniKvmResumeArgs *
             strncpy(args->name, optarg, name_len + 1);
             break;
         case 'h':
-            resume_print_help();
-            ret = 1;
-            break;
         case '?':
             ret = MINI_KVM_ARGS_FAILED;
             break;

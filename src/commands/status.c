@@ -74,9 +74,6 @@ static MiniKVMError status_parse_args(int argc, char **argv, MiniKvmStatusArgs *
             args->cmd_count += 1;
             break;
         case 'h':
-            status_print_help();
-            ret = 1;
-            break;
         case '?':
             ret = MINI_KVM_ARGS_FAILED;
             break;

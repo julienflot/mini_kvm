@@ -21,6 +21,7 @@ static const struct option opts_def[] = {
 static void shutdown_print_help() {
     printf("USAGE: mini_kvm shutdown\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
+    printf("\t--help/-h: print this message\n");
 }
 
 static MiniKVMError shutdown_parse_args(int argc, char **argv, MiniKvmShutdownArgs *args) {
@@ -38,9 +39,6 @@ static MiniKVMError shutdown_parse_args(int argc, char **argv, MiniKvmShutdownAr
             strncpy(args->name, optarg, name_len + 1);
             break;
         case 'h':
-            shutdown_print_help();
-            ret = 1;
-            break;
         case '?':
             ret = MINI_KVM_ARGS_FAILED;
             break;
