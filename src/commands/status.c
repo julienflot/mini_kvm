@@ -85,6 +85,12 @@ static MiniKVMError status_parse_args(int argc, char **argv, MiniKvmStatusArgs *
         args->vcpus = !0;
     }
 
+    // if no other command has been specified, fallback to show state command
+    if (args->cmd_count == 0) {
+        args->cmds[args->cmd_count] = MINI_KVM_COMMAND_SHOW_STATE;
+        args->cmd_count += 1;
+    }
+
     return ret;
 }
 
