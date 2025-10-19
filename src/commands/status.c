@@ -146,7 +146,7 @@ void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *
     if (res->error != MINI_KVM_SUCCESS) {
         switch (res->error) {
         case MINI_KVM_STATUS_CMD_VM_NOT_PAUSED:
-            INFO("VM %s is not paused, please pause the VM before sending request", args->name);
+            printf("VM %s is not paused, please pause the VM before sending request\n", args->name);
             break;
         default:
             break;
@@ -159,7 +159,7 @@ void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *
     case MINI_KVM_COMMAND_NONE:
         break;
     case MINI_KVM_COMMAND_SHOW_STATE:
-        TRACE("%s is %s", args->name, mini_kvm_vm_state_str(res->state));
+        printf("%s state: %s\n", args->name, mini_kvm_vm_state_str(res->state));
         break;
     case MINI_KVM_COMMAND_SHOW_REGS:
         for (uint64_t index = 0; index < MINI_KVM_MAX_VCPUS; index++) {
@@ -167,9 +167,10 @@ void status_handle_command_result(MiniKvmStatusArgs *args, MiniKvmStatusResult *
                 continue;
             }
 
-            TRACE("VCPU %u regs", index);
+            printf("VCPU %lu regs\n", index);
             mini_kvm_print_regs(&res->regs[index]);
-            TRACE("VCPU %u sregs", index);
+            printf("\n");
+            printf("VCPU %lu sregs\n", index);
             mini_kvm_print_sregs(&res->sregs[index]);
         }
         break;
@@ -192,12 +193,12 @@ MiniKVMError mini_kvm_status(int argc, char **argv) {
     }
 
     if (args.name == NULL) {
-        INFO("status: no name was specified, exiting ...");
+        printf("no VM name was specified, exiting ...\n");
         goto clean;
     }
 
     if (mini_kvm_check_vm(args.name) < 0) {
-        INFO("status: VM %s is not running, exiting ...", args.name);
+        printf("VM %s is not running, exiting ...\n", args.name);
         goto clean;
     }
 
