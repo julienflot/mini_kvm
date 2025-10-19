@@ -31,7 +31,7 @@ static const struct option opts_def[] = {
     {"help", no_argument, NULL, 'h'},       {0, 0, 0, 0}};
 
 static void status_print_help() {
-    printf("USAGE: mini_kvm run\n");
+    printf("USAGE: mini_kvm status\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
     printf("\t--regs/-r: request register state\n");
     printf("\t--vcpus/-v: specify a target VCPU list\n");
