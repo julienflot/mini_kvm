@@ -2,6 +2,12 @@ cmake_minimum_required(VERSION 4.0)
 
 include(CTest)
 
+function(define_test_exec exec_name sources)
+    add_executable(${exec_name} ${sources})
+    target_link_libraries(${exec_name} ${PROJECT_NAME})
+    target_include_directories(${exec_name} PUBLIC ${CMAKE_SOURCE_DIR}/src)
+endfunction()
+
 function(define_test test_name)
     add_executable(${test_name} args.c)
     target_link_libraries(${test_name} ${PROJECT_NAME})
@@ -24,3 +30,4 @@ define_mkvm_test_fail(no_args "mini_kvm <run|pause|resume>" "")
 
 # mkvm run sub commands test
 add_subdirectory(run)
+add_subdirectory(utils)

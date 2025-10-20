@@ -18,8 +18,8 @@ int32_t mini_kvm_check_vm(char *name);
 // === STRING UTILS ===
 
 // return true is str is a number (1234 => 1, hello => 0, 1234.1234 => 0)
-MiniKVMError mini_kvm_is_number(const char *str, size_t n);
-MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst);
+int32_t mini_kvm_is_uint(const char *str, size_t n);
+int32_t mini_kvm_to_uint(char *str, size_t n, uint64_t *dst);
 
 // the input list should be a comma separated list of integers (1,2,3 is a valid list)
 MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *list_size);

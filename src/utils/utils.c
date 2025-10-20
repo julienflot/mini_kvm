@@ -3,6 +3,7 @@
 #include "constants.h"
 #include "utils/errors.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <signal.h>
@@ -80,35 +81,36 @@ int32_t mini_kvm_check_vm(char *name) {
     return MINI_KVM_SUCCESS;
 }
 
-MiniKVMError mini_kvm_is_number(const char *str, size_t n) {
-    if (str == NULL || strlen(str) == 0) {
-        return MINI_KVM_SUCCESS;
+static inline int32_t is_digit(char c) { return c >= '0' && c <= '9'; }
+
+int32_t mini_kvm_is_uint(const char *str, size_t n) {
+    if (str == NULL || strlen(str) == 0 || n == 0) {
+        return 1;
     }
 
     size_t index = 0;
     while (str[index] != '\0' && index < n) {
-        if (str[index] < '0' || str[index] > '9') {
-            return MINI_KVM_SUCCESS;
+        if (!is_digit(str[index])) {
+            return 0;
         }
         index++;
     }
 
-    return MINI_KVM_INTERNAL_ERROR;
+    return 1;
 }
 
-MiniKVMError mini_kvm_to_number(const char *str, size_t n, uint64_t *dst) {
-    if (!mini_kvm_is_number(str, n)) {
-        return MINI_KVM_INTERNAL_ERROR;
+int32_t mini_kvm_to_uint(char *str, size_t n, uint64_t *dst) {
+    if (!mini_kvm_is_uint(str, n)) {
+        return -1;
     }
 
-    int32_t index = n - 1, exponent = 1;
-    while (index >= 0) {
-        *dst += ((uint64_t)(str[index] - '0') * exponent);
-        index--;
-        exponent *= 10;
+    char *str_end = str + n;
+    *dst = strtoul(str, &str_end, 10);
+    if (errno == EINVAL || errno == ERANGE) {
+        return -1;
     }
 
-    return MINI_KVM_SUCCESS;
+    return 0;
 }
 
 MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *list_size) {
@@ -124,7 +126,7 @@ MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *
 
     while (raw_list[index] != '\0') {
         uint64_t offset = 1, current = 0;
-        while (index + offset < raw_list_len && mini_kvm_is_number(raw_list + index, offset)) {
+        while (index + offset < raw_list_len && mini_kvm_is_uint(raw_list + index, offset)) {
             offset++;
         }
 
@@ -134,8 +136,8 @@ MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *
             return ret;
         }
 
-        ret = mini_kvm_to_number(raw_list + index, offset - ((raw_list_len - (index + offset)) > 0),
-                                 (uint64_t *)&current);
+        ret = mini_kvm_to_uint(raw_list + index, offset - ((raw_list_len - (index + offset)) > 0),
+                               (uint64_t *)&current);
         if (ret != MINI_KVM_SUCCESS) {
             return ret;
         }
