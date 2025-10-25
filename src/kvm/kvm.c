@@ -26,8 +26,8 @@ struct VcpuRunArgs {
 };
 
 // TODO: look for every capabilites needed for this application
-static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, -1};
-static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY"};
+static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, KVM_CAP_SET_TSS_ADDR, -1};
+static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TSS_ADDR"};
 static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
