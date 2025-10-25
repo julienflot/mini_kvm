@@ -1,9 +1,10 @@
 #ifndef MINI_KVM_COMMANDS_H
 #define MINI_KVM_COMMANDS_H
 
-#include "utils/errors.h"
 #include <inttypes.h>
 #include <stdint.h>
+
+#include "core/errors.h"
 
 typedef struct MiniKVMCommand {
     char *name;

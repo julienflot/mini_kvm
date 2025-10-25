@@ -1,13 +1,13 @@
 #include "filesystem.h"
 
-#include "utils/logger.h"
-
 #define _XOPEN_SOURCE 500
 #include <errno.h>
 #include <ftw.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "core/logger.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"

@@ -1,12 +1,13 @@
 #ifndef MINI_KVM_STRUCT
 #define MINI_KVM_STRUCT
 
-#include "utils/errors.h"
 #include <inttypes.h>
 #include <linux/kvm.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdbool.h>
+
+#include "core/errors.h"
 
 typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING, MINI_KVM_SHUTDOWN } VMState;
 

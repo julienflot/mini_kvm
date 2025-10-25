@@ -30,4 +30,4 @@ define_mkvm_test_fail(no_args "mini_kvm <run|pause|resume>" "")
 
 # mkvm run sub commands test
 add_subdirectory(run)
-add_subdirectory(utils)
+add_subdirectory(core)

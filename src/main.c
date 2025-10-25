@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "commands.h"
-#include "utils/errors.h"
-#include "utils/logger.h"
+#include "commands/commands.h"
+#include "core/errors.h"
+#include "core/logger.h"
 
 const MiniKVMCommand commands[] = {{"pause", mini_kvm_pause},       {"resume", mini_kvm_resume},
                                    {"run", mini_kvm_run},           {"status", mini_kvm_status},

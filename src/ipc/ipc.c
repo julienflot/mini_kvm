@@ -8,7 +8,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "utils/logger.h"
+#include "core/logger.h"
 
 static socklen_t SOCKET_SIZE = sizeof(struct sockaddr_un);
 

@@ -13,13 +13,13 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#include "commands.h"
-#include "constants.h"
+#include "commands/commands.h"
+#include "core/constants.h"
+#include "core/core.h"
+#include "core/errors.h"
+#include "core/logger.h"
 #include "ipc/ipc.h"
 #include "kvm/kvm.h"
-#include "utils/errors.h"
-#include "utils/logger.h"
-#include "utils/utils.h"
 
 typedef MiniKVMError (*CommandHandler)(Kvm *, MiniKvmStatusCommand *, MiniKvmStatusResult *);
 

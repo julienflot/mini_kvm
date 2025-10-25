@@ -6,10 +6,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(-Wall -Wextra -Werror)
 add_library(${PROJECT_NAME} STATIC
-    src/utils/logger.c 
-    src/utils/errors.c 
-    src/utils/utils.c 
-    src/utils/filesystem.c 
+    src/core/logger.c 
+    src/core/errors.c 
+    src/core/core.c 
+    src/core/filesystem.c 
     src/commands/run.c 
     src/commands/status.c 
     src/commands/pause.c 

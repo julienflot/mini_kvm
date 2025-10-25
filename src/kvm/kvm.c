@@ -13,10 +13,10 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "core/core.h"
+#include "core/errors.h"
+#include "core/logger.h"
 #include "kvm.h"
-#include "utils/errors.h"
-#include "utils/logger.h"
-#include "utils/utils.h"
 
 #define TSS_ADDR 0xfffbd000
 

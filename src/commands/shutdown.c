@@ -1,10 +1,10 @@
 #include "shutdown.h"
 
 #include "commands/status.h"
+#include "core/core.h"
+#include "core/errors.h"
+#include "core/logger.h"
 #include "ipc/ipc.h"
-#include "utils/errors.h"
-#include "utils/logger.h"
-#include "utils/utils.h"
 
 #include <getopt.h>
 #include <inttypes.h>

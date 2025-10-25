@@ -1,9 +1,10 @@
 #ifndef MINI_VKM_UTILS_H
 #define MINI_VKM_UTILS_H
 
-#include "utils/errors.h"
 #include <inttypes.h>
 #include <stdlib.h>
+
+#include "errors.h"
 
 typedef enum CPUVendor {
     GenuineIntel = 0,

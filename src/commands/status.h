@@ -7,9 +7,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "constants.h"
+#include "core/constants.h"
+#include "core/errors.h"
 #include "kvm/kvm.h"
-#include "utils/errors.h"
 
 typedef enum MiniKvmStatusCommandType {
     MINI_KVM_COMMAND_NONE = 0,
