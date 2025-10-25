@@ -33,23 +33,26 @@ static const struct option opts_def[] = {
     {"disk", required_argument, NULL, 'd'},   {"mem", required_argument, NULL, 'm'},
     {"kernel", required_argument, NULL, 'k'}, {0, 0, 0, 0}};
 
+static inline uint64_t aligned_to_pages(uint64_t mem_size) {
+    return (mem_size % 0x1000 == 0) ? mem_size : mem_size - mem_size % 0x1000 + 0x1000;
+}
+
 static int32_t parse_mem(char *arg, uint64_t *mem) {
     uint32_t arg_len = strlen(arg);
     if (arg_len == 0) {
         return -1;
     }
 
-    // TODO: find a better scale for units
-    uint32_t unit_scale = 1;
+    uint32_t unit_scale = 0;
     switch (arg[arg_len - 1]) {
     case 'K':
-        unit_scale = 1000;
+        unit_scale = 10;
         break;
     case 'M':
-        unit_scale = 1000000;
+        unit_scale = 20;
         break;
     case 'G':
-        unit_scale = 1000000000;
+        unit_scale = 30;
         break;
     default:
         if (!mini_kvm_is_uint(arg + arg_len - 1, 1)) {
@@ -59,12 +62,13 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
     }
 
     // if not unit was provided, we do not need to remove the last char
-    uint32_t offset = (unit_scale != 1) ? 1 : 0;
+    uint32_t offset = (unit_scale != 0) ? 1 : 0;
     if (!mini_kvm_is_uint(arg, arg_len - offset)) {
         return -1;
     }
     mini_kvm_to_uint(arg, arg_len - offset, mem);
-    *mem *= unit_scale;
+    *mem = *mem << unit_scale;
+    *mem = aligned_to_pages(*mem);
 
     return MINI_KVM_SUCCESS;
 }
