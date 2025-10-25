@@ -21,29 +21,29 @@ make
 ### `mini_kvm run`
 
 ```
---name name: set the name of the VM.
---vcpus number: number of vcpu to allocate.
---mem size: ram quantity allocated.
---kernel path: path to a kernel image.
---log [path]: log internal inforamtion.
+--name/-n:  set the name of the virtual machine
+--log/-l:   enable logging, can specify an output file with --log=output.txt
+--mem/-m:   memory allocated to the virtual machine in bytes
+--vcpu/-v:  number of vcpus dedicated to the virtual machine
+--help/-h:  print this message
 ```
 
 ### `mini_kvm pause`
 
 ```
-name: name of the VM.
+--name/-n:  set the name of the virtual machine
 ```
 
 ### `mini_kvm resume`
 
 ```
---name: name of the VM.
+--name/-n:  set the name of the virtual machine
 ```
 
 ### `mini_kvm shutdown`
 
 ```
---name: name of the VM.
+--name/-n:  set the name of the virtual machine
 ```
 
 ### `mini_kvm status`
@@ -51,9 +51,10 @@ name: name of the VM.
 With no arguments other than the name, this sub command will print the current state of the VM.
 
 ```
---name: name of the VM.
---regs: show registers.
---vcpus: select which vcpus the command will target.
+--name/-n:  set the name of the virtual machine
+--regs/-r:  request register state
+--vcpus/-v: specify a target VCPU list
+--mem/-m:   dump memory format is start_addr,[,end_addr][,word_size][,bytes_per_line]
 ```
 
 # References :
