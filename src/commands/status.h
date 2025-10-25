@@ -8,6 +8,7 @@
 #include <sys/un.h>
 
 #include "core/constants.h"
+#include "core/containers.h"
 #include "core/errors.h"
 #include "kvm/kvm.h"
 
@@ -25,8 +26,7 @@ typedef enum MiniKvmStatusCommandType {
 typedef struct MiniKvmStatusArgs {
     char *name;
     bool regs;
-    uint64_t *mem_range;
-    uint64_t mem_range_size;
+    vec_uint64_t *mem_range;
     uint64_t vcpus;
     uint64_t cmd_count;
     MiniKvmStatusCommandType cmds[MINI_KVM_COMMAND_COUNT];

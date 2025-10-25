@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <stdbool.h>
 
+#include "core/containers.h"
 #include "core/errors.h"
 
 typedef enum VMState { MINI_KVM_PAUSED = 0, MINI_KVM_RUNNING, MINI_KVM_SHUTDOWN } VMState;
@@ -41,10 +42,7 @@ typedef struct Kvm {
     uint64_t *mem;
     struct kvm_userspace_memory_region u_region;
 
-    uint32_t vcpu_count;
-    uint32_t vcpu_capacity;
-    VCpu *vcpus;
-
+    vec_VCpu *vcpus;
     pthread_mutex_t lock;
     int32_t sock;
 

@@ -66,7 +66,7 @@ static MiniKVMError status_parse_args(int argc, char **argv, MiniKvmStatusArgs *
             }
             break;
         case 'm':
-            if (mini_kvm_parse_int_list((char *)optarg, &args->mem_range, &args->mem_range_size)) {
+            if (mini_kvm_parse_int_list((char *)optarg, &args->mem_range)) {
                 ERROR("invalid mem range format %s", optarg);
                 ret = MINI_KVM_ARGS_FAILED;
             }
@@ -108,10 +108,10 @@ static MiniKVMError status_build_command(MiniKvmStatusArgs *args, uint32_t cmd_i
         break;
     case MINI_KVM_COMMAND_DUMP_MEM:
         cmd->type = type;
-        for (uint32_t i = 0; i < args->mem_range_size; i++) {
-            cmd->mem_range[i] = args->mem_range[i];
+        for (uint32_t i = 0; i < args->mem_range->len; i++) {
+            cmd->mem_range[i] = args->mem_range->tab[i];
         }
-        for (uint32_t i = args->mem_range_size; i < 4; i++) {
+        for (uint32_t i = args->mem_range->len; i < 4; i++) {
             cmd->mem_range[i] = MEM_RANGE_DEFAULTS[i];
         }
         cmd->pid = getpid();
@@ -224,7 +224,7 @@ clean:
     }
 
     if (args.mem_range) {
-        free(args.mem_range);
+        vec_free(args.mem_range);
     }
 
     return ret;
@@ -243,12 +243,12 @@ static MiniKVMError status_handle_regs(Kvm *kvm, MiniKvmStatusCommand *cmd,
         return MINI_KVM_STATUS_CMD_VM_NOT_PAUSED;
     }
 
-    for (uint64_t index = 0; index < kvm->vcpu_count; index++) {
+    for (uint64_t index = 0; index < kvm->vcpus->len; index++) {
         if (!(cmd->vcpus & (1UL << index))) {
             continue;
         }
 
-        VCpu vcpu = kvm->vcpus[index];
+        VCpu vcpu = kvm->vcpus->tab[index];
         if (ioctl(vcpu.fd, KVM_GET_REGS, &res->regs)) {
             ERROR("failed to vcpu %u registers (%s)", index, strerror(errno));
             return MINI_KVM_INTERNAL_ERROR;

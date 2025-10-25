@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#include "containers.h"
 #include "errors.h"
 
 typedef enum CPUVendor {
@@ -23,7 +24,7 @@ int32_t mini_kvm_is_uint(const char *str, size_t n);
 int32_t mini_kvm_to_uint(char *str, size_t n, uint64_t *dst);
 
 // the input list should be a comma separated list of integers (1,2,3 is a valid list)
-MiniKVMError mini_kvm_parse_int_list(char *raw_list, uint64_t **list, uint64_t *list_size);
+MiniKVMError mini_kvm_parse_int_list(char *raw_list, vec_uint64_t **list);
 // parse a raw cpu list and convert it to a cpu mask
 MiniKVMError mini_kvm_parse_cpu_list(char *raw_list, uint64_t *cpu_list);
 

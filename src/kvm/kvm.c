@@ -33,6 +33,10 @@ static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     int32_t kvm_version;
 
+    kvm->vcpus = vec_new_VCpu();
+    pthread_mutex_init(&kvm->lock, NULL);
+    kvm->state = MINI_KVM_PAUSED;
+
     kvm->kvm_fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
     if (kvm->kvm_fd < 0) {
         ERROR("failed to open kvm device : s%", strerror(errno));
@@ -91,33 +95,7 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     }
     INFO("VM memory region created at guest physical address 0x0");
 
-    kvm->vcpu_count = 0;
-    kvm->vcpu_capacity = 1;
-    kvm->vcpus = malloc(sizeof(VCpu));
-
-    pthread_mutex_init(&kvm->lock, NULL);
-    kvm->state = MINI_KVM_PAUSED;
-
     return MINI_KVM_SUCCESS;
-}
-
-static void mini_kvm_append_vcpu(Kvm *kvm, VCpu *vcpu) {
-    if (vcpu == NULL) {
-        ERROR("cannot create append vcpu VCPU without initializing KVM");
-        return;
-    }
-
-    if (kvm->vcpu_count >= kvm->vcpu_capacity) {
-        kvm->vcpu_capacity = kvm->vcpu_capacity << 1;
-        VCpu *vcpus = malloc(sizeof(VCpu) * kvm->vcpu_capacity);
-
-        memcpy(vcpus, kvm->vcpus, sizeof(VCpu) * kvm->vcpu_count);
-        free(kvm->vcpus);
-        kvm->vcpus = vcpus;
-    }
-
-    kvm->vcpus[vcpu->id] = *vcpu;
-    kvm->vcpu_count++;
 }
 
 MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
@@ -127,7 +105,7 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
     }
 
     VCpu vcpu = {0};
-    vcpu.id = kvm->vcpu_count;
+    vcpu.id = kvm->vcpus->len;
     vcpu.fd = ioctl(kvm->vm_fd, KVM_CREATE_VCPU, vcpu.id);
     if (vcpu.fd < 0) {
         ERROR("failed to create vcpu %d (%s)", vcpu.id, strerror(errno));
@@ -146,7 +124,7 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
 
-    mini_kvm_append_vcpu(kvm, &vcpu);
+    vec_append(kvm->vcpus, vcpu);
     INFO("VCPU %d initialized", vcpu.id);
 
     return MINI_KVM_SUCCESS;
@@ -164,11 +142,11 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
     VCpu *vcpu = NULL;
     int32_t ret = 0;
 
-    if (id > kvm->vcpu_count) {
+    if (id > kvm->vcpus->len) {
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    vcpu = &kvm->vcpus[id];
+    vcpu = &kvm->vcpus->tab[id];
 
     memset(&vcpu->regs, 0, sizeof(struct kvm_regs));
     vcpu->regs.rip = start_addr;
@@ -233,12 +211,12 @@ static MiniKVMError mini_kvm_handle_io(struct kvm_run *kvm_run) {
 MiniKVMError mini_kvm_start_vm(Kvm *kvm) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
 
-    if (kvm == NULL || kvm->vcpu_count == 0) {
+    if (kvm == NULL || kvm->vcpus->len == 0) {
         ERROR("0 VCPUs was configured, unable to start VM ...");
         return MINI_KVM_INTERNAL_ERROR;
     }
 
-    for (uint32_t vcpu_index = 0; vcpu_index < kvm->vcpu_count; vcpu_index++) {
+    for (uint32_t vcpu_index = 0; vcpu_index < kvm->vcpus->len; vcpu_index++) {
         ret = mini_kvm_vcpu_run(kvm, vcpu_index);
         if (ret != MINI_KVM_SUCCESS) {
             break;
@@ -317,7 +295,7 @@ static void *kvm_vcpu_thread_run(void *args) {
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
     MiniKVMError ret = MINI_KVM_SUCCESS;
     struct VcpuRunArgs *args = malloc(sizeof(struct VcpuRunArgs));
-    VCpu *vcpu = &kvm->vcpus[id];
+    VCpu *vcpu = &kvm->vcpus->tab[id];
 
     args->kvm = kvm;
     args->vcpu = vcpu;
@@ -331,26 +309,26 @@ MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id) {
 }
 
 void mini_kvm_send_sig(Kvm *kvm, int32_t signum) {
-    if (kvm->vcpu_count == 0) {
+    if (kvm->vcpus->len == 0) {
         return;
     }
 
-    for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
-        pthread_kill(kvm->vcpus[i].thread, signum);
+    for (uint32_t i = 0; i < kvm->vcpus->len; i++) {
+        pthread_kill(kvm->vcpus->tab[i].thread, signum);
     }
 }
 
 void mini_kvm_clean_kvm(Kvm *kvm) {
-    if (kvm->vcpu_count > 0) {
-        for (uint32_t i = 0; i < kvm->vcpu_count; i++) {
-            VCpu vcpu = kvm->vcpus[i];
+    if (kvm->vcpus->len > 0) {
+        for (uint32_t i = 0; i < kvm->vcpus->len; i++) {
+            VCpu vcpu = kvm->vcpus->tab[i];
             if (vcpu.thread) {
-                pthread_join(kvm->vcpus[i].thread, NULL);
+                pthread_join(kvm->vcpus->tab[i].thread, NULL);
             }
-            munmap(kvm->vcpus[i].kvm_run, kvm->vcpus[i].mem_region_size);
-            close(kvm->vcpus[i].fd);
+            munmap(kvm->vcpus->tab[i].kvm_run, kvm->vcpus->tab[i].mem_region_size);
+            close(kvm->vcpus->tab[i].fd);
         }
-        free(kvm->vcpus);
+        vec_free(kvm->vcpus);
     }
 
     if (kvm->name) {

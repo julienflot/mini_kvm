@@ -10,6 +10,7 @@ add_library(${PROJECT_NAME} STATIC
     src/core/errors.c 
     src/core/core.c 
     src/core/filesystem.c 
+    src/core/containers.c 
     src/commands/run.c 
     src/commands/status.c 
     src/commands/pause.c 
