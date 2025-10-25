@@ -74,7 +74,8 @@ static int32_t parse_mem(char *arg, uint64_t *mem) {
 }
 
 void run_print_help() {
-    printf("USAGE: mini_kvm run\n");
+    printf("USAGE:\n\tmini_kvm run [options] ...\n");
+    printf("OPTIONS:\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
     printf("\t--log/-l: enable logging, can specify an output file with --log=output.txt\n");
     printf("\t--mem/-m: memory allocated to the virtual machine in bytes\n");

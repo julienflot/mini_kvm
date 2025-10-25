@@ -20,7 +20,8 @@ static const struct option opts_def[] = {
     {"name", required_argument, NULL, 'n'}, {"help", no_argument, NULL, 'h'}, {0, 0, 0, 0}};
 
 static void pause_print_help() {
-    printf("USAGE: mini_kvm pause\n");
+    printf("USAGE:\n\tmini_kvm pause [options] ...\n");
+    printf("OPTIONS:\n");
     printf("\t--name/-n: set the name of the virtual machine\n");
     printf("\t--help/-h: print this message\n");
 }

@@ -9,7 +9,10 @@ const MiniKVMCommand commands[] = {{"pause", mini_kvm_pause},       {"resume", m
                                    {"run", mini_kvm_run},           {"status", mini_kvm_status},
                                    {"shutdown", mini_kvm_shutdown}, {NULL, NULL}};
 
-void print_help() { printf("mini_kvm <run|pause|resume|shutdown|status>\n"); }
+void print_help() {
+    printf("USAGE:\n");
+    printf("\tmini_kvm <run|pause|resume|shutdown|status>\n");
+}
 
 MiniKVMError handle_command(int32_t argc, char **argv) {
     int32_t cmd_idx = 0;
@@ -31,8 +34,7 @@ MiniKVMError handle_command(int32_t argc, char **argv) {
 int32_t main(int32_t argc, char **argv) {
     logger_init(NULL);
 
-    // TODO: do a better check
-    if (argc <= 1) {
+    if (argc <= 1 || strncmp("-h", argv[1], 2) == 0 || strncmp("--help", argv[1], 6) == 0) {
         print_help();
         return MINI_KVM_SUCCESS;
     }
