@@ -206,10 +206,6 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
     }
     INFO("VCPU %d cpuid set", vcpu->id);
 
-    signal(SIGVMPAUSE, mini_kvm_vcpu_signal_handler);
-    signal(SIGVMRESUME, mini_kvm_vcpu_signal_handler);
-    signal(SIGVMSHUTDOWN, mini_kvm_vcpu_signal_handler);
-
     return MINI_KVM_SUCCESS;
 }
 
@@ -259,6 +255,10 @@ static void *kvm_vcpu_thread_run(void *args) {
     Kvm *kvm = vcpu_args->kvm;
     VCpu *vcpu = vcpu_args->vcpu;
     MiniKVMError ret = 0;
+
+    signal(SIGVMPAUSE, mini_kvm_vcpu_signal_handler);
+    signal(SIGVMRESUME, mini_kvm_vcpu_signal_handler);
+    signal(SIGVMSHUTDOWN, mini_kvm_vcpu_signal_handler);
 
     vcpu->running = 1;
     while (kvm->state != MINI_KVM_SHUTDOWN) {
