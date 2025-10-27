@@ -19,6 +19,7 @@
 #include "kvm.h"
 
 #define TSS_ADDR 0xfffbd000
+#define MAX_CPUID_ENTRIES 100
 
 struct VcpuRunArgs {
     Kvm *kvm;
@@ -26,8 +27,10 @@ struct VcpuRunArgs {
 };
 
 // TODO: look for every capabilites needed for this application
-static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, KVM_CAP_SET_TSS_ADDR, -1};
-static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TSS_ADDR"};
+static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, KVM_CAP_SET_TSS_ADDR,
+                                        KVM_CAP_EXT_CPUID, -1};
+static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TSS_ADDR",
+                                          "KVM_CAP_EXT_CPUID"};
 static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
@@ -138,6 +141,24 @@ static void mini_kvm_vcpu_signal_handler(int signum) {
     }
 }
 
+static MiniKVMError kvm_setup_cpuid(Kvm *kvm, VCpu *vcpu) {
+    struct kvm_cpuid2 *cpuid =
+        calloc(1, sizeof(struct kvm_cpuid2) + MAX_CPUID_ENTRIES * sizeof(struct kvm_cpuid_entry2));
+    cpuid->nent = MAX_CPUID_ENTRIES;
+
+    if (ioctl(kvm->kvm_fd, KVM_GET_SUPPORTED_CPUID, cpuid) < 0) {
+        ERROR("kvm: failed to get supported cpuid (%s)", strerror(errno));
+        return MINI_KVM_FAILED_IOCTL;
+    }
+
+    if (ioctl(vcpu->fd, KVM_SET_CPUID2, cpuid) < 0) {
+        ERROR("kvm: failed to set cpuid (%s)", strerror(errno));
+        return MINI_KVM_FAILED_IOCTL;
+    }
+
+    return MINI_KVM_SUCCESS;
+}
+
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
     VCpu *vcpu = NULL;
     int32_t ret = 0;
@@ -179,6 +200,11 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
     INFO("VCPU %d sregs set", id);
+
+    if (kvm_setup_cpuid(kvm, vcpu) != MINI_KVM_SUCCESS) {
+        return MINI_KVM_FAILED_VCPU_CREATION;
+    }
+    INFO("VCPU %d cpuid set", vcpu->id);
 
     signal(SIGVMPAUSE, mini_kvm_vcpu_signal_handler);
     signal(SIGVMRESUME, mini_kvm_vcpu_signal_handler);
