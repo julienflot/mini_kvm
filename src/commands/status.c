@@ -291,6 +291,7 @@ static MiniKVMError status_handle_pause(Kvm *kvm, __attribute__((unused)) MiniKv
                                         __attribute((unused)) MiniKvmStatusResult *res) {
     kvm->state = MINI_KVM_PAUSED;
     mini_kvm_send_sig(kvm, SIGVMPAUSE);
+    mini_kvm_pause_vm(kvm);
 
     return MINI_KVM_SUCCESS;
 }
@@ -300,6 +301,7 @@ static MiniKVMError status_handle_resume(Kvm *kvm,
                                          __attribute((unused)) MiniKvmStatusResult *res) {
     kvm->state = MINI_KVM_RUNNING;
     mini_kvm_send_sig(kvm, SIGVMRESUME);
+    mini_kvm_resume_vm(kvm);
 
     return MINI_KVM_SUCCESS;
 }
@@ -309,6 +311,9 @@ static MiniKVMError status_handle_shutdown(Kvm *kvm,
                                            __attribute((unused)) MiniKvmStatusResult *res) {
     kvm->state = MINI_KVM_SHUTDOWN;
     mini_kvm_send_sig(kvm, SIGVMSHUTDOWN);
+    if (kvm->paused) {
+        mini_kvm_resume_vm(kvm);
+    }
 
     return MINI_KVM_SUCCESS;
 }

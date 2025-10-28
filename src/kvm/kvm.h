@@ -47,6 +47,9 @@ typedef struct Kvm {
     int32_t sock;
 
     VMState state;
+    uint64_t paused;
+    pthread_cond_t pause_cond;
+    pthread_mutex_t pause_lock;
 } Kvm;
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
@@ -57,6 +60,8 @@ MiniKVMError mini_kvm_start_vm(Kvm *vm);
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
 
 void mini_kvm_send_sig(Kvm *kvm, int32_t signum);
+void mini_kvm_pause_vm(Kvm *kvm);
+void mini_kvm_resume_vm(Kvm *kvm);
 
 const char *mini_kvm_vm_state_str(VMState state);
 void mini_kvm_print_regs(struct kvm_regs *regs);

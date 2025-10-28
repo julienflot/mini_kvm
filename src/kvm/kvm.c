@@ -37,8 +37,11 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
     int32_t kvm_version;
 
     kvm->vcpus = vec_new_VCpu();
-    pthread_mutex_init(&kvm->lock, NULL);
     kvm->state = MINI_KVM_PAUSED;
+    kvm->paused = 0;
+    pthread_mutex_init(&kvm->lock, NULL);
+    pthread_cond_init(&kvm->pause_cond, NULL);
+    pthread_mutex_init(&kvm->pause_lock, NULL);
 
     kvm->kvm_fd = open("/dev/kvm", O_RDWR | O_CLOEXEC);
     if (kvm->kvm_fd < 0) {
@@ -263,10 +266,10 @@ static void *kvm_vcpu_thread_run(void *args) {
     vcpu->running = 1;
     while (kvm->state != MINI_KVM_SHUTDOWN) {
 
-        // TODO: find a better to wait for the resume signal and better way to synchrnoize threads
-        // on state transition
         if (kvm->state == MINI_KVM_PAUSED) {
-            usleep(10000);
+            while (kvm->paused) {
+                pthread_cond_wait(&kvm->pause_cond, &kvm->pause_lock);
+            }
             continue;
         }
 
@@ -306,8 +309,7 @@ static void *kvm_vcpu_thread_run(void *args) {
             kvm->state = MINI_KVM_SHUTDOWN;
             break;
         case KVM_EXIT_UNKNOWN:
-            ERROR("KVM: exit unknown");
-            kvm->state = MINI_KVM_SHUTDOWN;
+            TRACE("KVM: exit unknown");
             break;
         default:
             TRACE("KVM: exit unhandled %d", exit_reason);
@@ -342,6 +344,17 @@ void mini_kvm_send_sig(Kvm *kvm, int32_t signum) {
     for (uint32_t i = 0; i < kvm->vcpus->len; i++) {
         pthread_kill(kvm->vcpus->tab[i].thread, signum);
     }
+}
+
+void mini_kvm_pause_vm(Kvm *kvm) {
+    pthread_mutex_lock(&kvm->pause_lock);
+    kvm->paused = 1;
+}
+
+void mini_kvm_resume_vm(Kvm *kvm) {
+    kvm->paused = 0;
+    pthread_cond_signal(&kvm->pause_cond);
+    pthread_mutex_unlock(&kvm->pause_lock);
 }
 
 void mini_kvm_clean_kvm(Kvm *kvm) {
