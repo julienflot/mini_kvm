@@ -26,7 +26,6 @@ struct VcpuRunArgs {
     VCpu *vcpu;
 };
 
-// TODO: look for every capabilites needed for this application
 static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, KVM_CAP_SET_TSS_ADDR,
                                         KVM_CAP_EXT_CPUID, -1};
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TSS_ADDR",
