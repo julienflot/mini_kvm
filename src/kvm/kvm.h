@@ -56,6 +56,7 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size);
 void mini_kvm_clean_kvm(Kvm *kvm);
 MiniKVMError mini_kvm_add_vcpu(Kvm *kvm);
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr);
+MiniKVMError mini_kvm_configure_paging(Kvm *kvm);
 MiniKVMError mini_kvm_start_vm(Kvm *vm);
 MiniKVMError mini_kvm_vcpu_run(Kvm *kvm, int32_t id);
 

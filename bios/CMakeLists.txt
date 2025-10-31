@@ -7,7 +7,7 @@ set(MINI_BIOS_LIB ${CMAKE_CURRENT_BINARY_DIR}/lib${PROJECT_NAME}.a)
 set(LD_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/bios.ld)
 set(BIOS_FILE bios.img)
 
-add_compile_options(-m32 -fno-pic -Wall -Wextra -Werror)
+add_compile_options(-m64 -fno-pic -Wall -Wextra -Werror)
 add_library(mini_bios 
     boot.s
 )
@@ -18,6 +18,6 @@ add_custom_target(
     ALL
     BYPRODUCTS ${BIOS_FILE}
     DEPENDS mini_bios ${LD_SCRIPT}
-    COMMAND ld -T ${LD_SCRIPT} -m elf_i386 ${MINI_BIOS_LIB}
+    COMMAND ld -T ${LD_SCRIPT} ${MINI_BIOS_LIB}
     COMMENT "Compiling ${BIOS_FILE}"
 )

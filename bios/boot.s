@@ -1,31 +1,31 @@
     .intel_syntax noprefix
-    .code16
+    .code64
 
 .text
 .global _start
 _start:
-    lea si, msg
+    lea rsi, msg
     call print
 end:
     hlt
 
 .global print
 print:
-    push bp
-    mov bp, sp
+    push rbp
+    mov rbp, rsp
     
-    mov ax, 0
-    mov bx, 0
-    mov dx, 0x3f8
+    mov rax, 0
+    mov rbx, 0
+    mov rdx, 0x3f8
 print_loop:
-    mov al, [si + bx] # only load on byte
+    mov al, [rsi + rbx] # only load on byte
     cmp ax, 0
     je print_exit
     out dx, ax
-    inc bx
+    inc rbx
     jmp print_loop
 print_exit:
-    pop bp
+    pop rbp
     ret
 
 .data

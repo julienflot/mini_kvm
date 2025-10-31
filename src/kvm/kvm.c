@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "core/constants.h"
 #include "core/core.h"
 #include "core/errors.h"
 #include "core/logger.h"
@@ -159,6 +160,69 @@ static MiniKVMError kvm_setup_cpuid(Kvm *kvm, VCpu *vcpu) {
     }
 
     return MINI_KVM_SUCCESS;
+}
+
+static MiniKVMError kvm_setup_pages(Kvm *kvm) {
+    uint64_t plm4_addr = PLM4_ADDR;
+    uint64_t pdpt_addr = plm4_addr + PAGE_SIZE;
+    uint64_t pdt_addr = pdpt_addr + PAGE_SIZE;
+
+    if (kvm->mem_size < MINIMUM_MEMORY_REQUIRED) {
+        ERROR("failed to setup pages: not enough memory, please allocation a least %lu bytes",
+              MINIMUM_MEMORY_REQUIRED);
+        return MINI_KVM_NOT_ENOUGH_MEMORY;
+    }
+    memset((void *)kvm->mem + plm4_addr, 0, PAGE_SIZE * 3);
+
+    *(uint64_t *)((void *)kvm->mem + plm4_addr) = (pdpt_addr & PT_ADDR_MASK) | PT_PRESENT | PT_RW;
+    *(uint64_t *)((void *)kvm->mem + pdpt_addr) = (pdt_addr & PT_ADDR_MASK) | PT_PRESENT | PT_RW;
+    *(uint64_t *)((void *)kvm->mem + pdt_addr) = PT_PAGE_SIZE | PT_PRESENT | PT_RW;
+
+    return MINI_KVM_SUCCESS;
+}
+
+MiniKVMError mini_kvm_configure_paging(Kvm *kvm) {
+    MiniKVMError ret = MINI_KVM_SUCCESS;
+
+    ret = kvm_setup_pages(kvm);
+    if (ret != MINI_KVM_SUCCESS) {
+        return ret;
+    }
+
+    struct kvm_segment code_seg = {
+        .base = 0,
+        .limit = 0xffffffff,
+        .selector = 1 << 3,
+        .present = 1,
+        .type = 11,
+        .dpl = 0,
+        .db = 0,
+        .s = 1,
+        .l = 1,
+        .g = 1,
+    };
+
+    struct kvm_segment data_seg = code_seg;
+    data_seg.selector = 2 << 3;
+    data_seg.type = 0x3;
+
+    // enable cpu bits
+    for (size_t i = 0; i < kvm->vcpus->len; i++) {
+        VCpu *vcpu = &kvm->vcpus->tab[i];
+        vcpu->sregs.cr0 = CR0_PE | CR0_PG;
+        vcpu->sregs.cr3 = PLM4_ADDR;
+        vcpu->sregs.cr4 = CR4_PAE;
+        vcpu->sregs.efer = EFER_LME | EFER_LMA;
+        vcpu->sregs.cs = code_seg;
+        vcpu->sregs.ds = vcpu->sregs.es = vcpu->sregs.fs = vcpu->sregs.gs = data_seg;
+        if (ioctl(vcpu->fd, KVM_SET_SREGS, &vcpu->sregs) < 0) {
+            ERROR("failed to set sregs in %s (%s)", __FUNCTION__, strerror(errno));
+            mini_kvm_print_sregs(&vcpu->sregs);
+            return MINI_KVM_INTERNAL_ERROR;
+        }
+    }
+
+    return ret;
 }
 
 MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
@@ -426,7 +490,7 @@ void mini_kvm_dump_mem(Kvm *kvm, int32_t out, uint64_t start, uint64_t end, uint
                 break;
             }
 
-            for (uint32_t word_offset = 0; word_offset < word_size; word_offset++) {
+            for (int32_t word_offset = word_size - 1; word_offset >= 0; word_offset--) {
                 dprintf(out, "%02hx", start_ptr[offset + word_offset]);
             }
             dprintf(out, " ");

@@ -322,13 +322,19 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
             goto clean_kvm;
         }
 
-        ret = mini_kvm_setup_vcpu(kvm, i, 4096);
+        ret = mini_kvm_setup_vcpu(kvm, i, 0x4000);
         if (ret != MINI_KVM_SUCCESS) {
             goto clean_fs;
         }
     }
 
-    ret = load_kernel(kvm, &args, 4096);
+    ret = mini_kvm_configure_paging(kvm);
+    if (ret != 0) {
+        goto clean_kvm;
+    }
+    INFO("paging configured");
+
+    ret = load_kernel(kvm, &args, 0x4000);
     if (ret != 0) {
         goto clean_kvm;
     }
