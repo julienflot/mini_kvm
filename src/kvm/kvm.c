@@ -33,7 +33,7 @@ static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TS
                                           "KVM_CAP_EXT_CPUID"};
 static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
 
-MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint32_t mem_size) {
+MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint64_t mem_size) {
     int32_t kvm_version;
 
     kvm->vcpus = vec_new_VCpu();
@@ -130,8 +130,11 @@ MiniKVMError mini_kvm_add_vcpu(Kvm *kvm) {
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
 
-    vec_append(kvm->vcpus, vcpu);
+    if (mini_kvm_setup_vcpu(kvm, &vcpu, BOOTLOADER_ADDR) != MINI_KVM_SUCCESS) {
+        return MINI_KVM_FAILED_VCPU_CREATION;
+    }
     INFO("VCPU %d initialized", vcpu.id);
+    vec_append(kvm->vcpus, vcpu);
 
     return MINI_KVM_SUCCESS;
 }
@@ -225,15 +228,8 @@ MiniKVMError mini_kvm_configure_paging(Kvm *kvm) {
     return ret;
 }
 
-MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
-    VCpu *vcpu = NULL;
+MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, VCpu *vcpu, uint64_t start_addr) {
     int32_t ret = 0;
-
-    if (id > kvm->vcpus->len) {
-        return MINI_KVM_INTERNAL_ERROR;
-    }
-
-    vcpu = &kvm->vcpus->tab[id];
 
     memset(&vcpu->regs, 0, sizeof(struct kvm_regs));
     vcpu->regs.rip = start_addr;
@@ -245,7 +241,7 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
         ERROR("failed to set vcpu %d regs (%s)", vcpu->id, strerror(errno));
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
-    INFO("VCPU %d regs set", id);
+    INFO("VCPU %d regs set", vcpu->id);
 
     ret = ioctl(vcpu->fd, KVM_GET_SREGS, &vcpu->sregs);
     if (ret < 0) {
@@ -265,7 +261,7 @@ MiniKVMError mini_kvm_setup_vcpu(Kvm *kvm, uint32_t id, uint64_t start_addr) {
         ERROR("failed to set vcpu %d sregs (%s)", vcpu->id, strerror(errno));
         return MINI_KVM_FAILED_VCPU_CREATION;
     }
-    INFO("VCPU %d sregs set", id);
+    INFO("VCPU %d sregs set", vcpu->id);
 
     if (kvm_setup_cpuid(kvm, vcpu) != MINI_KVM_SUCCESS) {
         return MINI_KVM_FAILED_VCPU_CREATION;

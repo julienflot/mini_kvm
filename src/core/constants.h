@@ -7,6 +7,7 @@
 #define PLM4_ADDR 0x1000
 #define PAGE_SIZE 0x1000
 #define MINIMUM_MEMORY_REQUIRED 0x5000
+#define BOOTLOADER_ADDR 0x4000
 
 // control and msr constants
 #define CR0_PE 0x1

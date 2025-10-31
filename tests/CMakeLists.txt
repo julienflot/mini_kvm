@@ -25,7 +25,7 @@ endfunction()
 
 # mkvm tests
 define_mkvm_test_fail(no_mem "cannot create VM with memory of size 0" "run")
-define_mkvm_test_fail(no_kernel "kernel code is empty" "run --mem=4096")
+define_mkvm_test_fail(no_kernel "kernel code is empty" "run --mem=32K")
 define_mkvm_test_fail(no_args "mini_kvm <run|pause|resume>" "")
 
 # mkvm run sub commands test

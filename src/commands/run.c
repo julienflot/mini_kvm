@@ -148,6 +148,9 @@ MiniKVMError run_parse_args(int argc, char **argv, MiniKvmRunArgs *args) {
         }
     }
 
+    // set default vcpu number to one
+    args->vcpu = (args->vcpu == 0) ? 1 : args->vcpu;
+
     return ret;
 }
 
@@ -312,19 +315,10 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
         goto clean_kvm;
     }
 
-    // if vcpu number has not been specified by the user, mini_kvm set it to at least one
-    if (args.vcpu == 0) {
-        args.vcpu = 1;
-    }
     for (uint32_t i = 0; i < args.vcpu; i++) {
         ret = mini_kvm_add_vcpu(kvm);
         if (ret != MINI_KVM_SUCCESS) {
             goto clean_kvm;
-        }
-
-        ret = mini_kvm_setup_vcpu(kvm, i, 0x4000);
-        if (ret != MINI_KVM_SUCCESS) {
-            goto clean_fs;
         }
     }
 
@@ -334,7 +328,7 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
     }
     INFO("paging configured");
 
-    ret = load_kernel(kvm, &args, 0x4000);
+    ret = load_kernel(kvm, &args, BOOTLOADER_ADDR);
     if (ret != 0) {
         goto clean_kvm;
     }
@@ -350,10 +344,8 @@ MiniKVMError mini_kvm_run(int argc, char **argv) {
     }
 
     run_set_signals();
-
     run_main_loop(kvm);
 
-clean_fs:
     if (args.name != NULL) {
         rmrf(kvm->fs_path);
     }
