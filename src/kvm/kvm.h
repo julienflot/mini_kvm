@@ -41,6 +41,7 @@ typedef struct Kvm {
     int64_t mem_size;
     uint64_t *mem;
     struct kvm_userspace_memory_region u_region;
+    struct kvm_pit_config pit_config;
 
     vec_VCpu *vcpus;
     pthread_mutex_t lock;

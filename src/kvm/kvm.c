@@ -20,6 +20,7 @@
 #include "kvm.h"
 
 #define TSS_ADDR 0xfffbd000
+#define IDENTITY_MAP_ADDR 0xfffbc000
 #define MAX_CPUID_ENTRIES 100
 
 struct VcpuRunArgs {
@@ -32,6 +33,21 @@ static const int32_t MINI_KVM_CAPS[] = {KVM_CAP_USER_MEMORY, KVM_CAP_SET_TSS_ADD
 static const char *MINI_KVM_CAPS_STR[] = {"KVM_CAP_USER_MEMORY", "KVM_CAP_SET_TSS_ADDR",
                                           "KVM_CAP_EXT_CPUID"};
 static const char *VM_STATE_STR[] = {"paused", "running", "shutdown"};
+
+static MiniKVMError kvm_setup_irq(Kvm *kvm) {
+    if (ioctl(kvm->vm_fd, KVM_CREATE_IRQCHIP) < -1) {
+        ERROR("failed to create irq chip (%s)", strerror(errno));
+        return MINI_KVM_FAILED_IOCTL;
+    }
+
+    if (ioctl(kvm->vm_fd, KVM_CREATE_PIT2, &kvm->pit_config) < -1) {
+        ERROR("failed to create irq chip (%s)", strerror(errno));
+        return MINI_KVM_FAILED_IOCTL;
+    }
+    INFO("irq setup finalized");
+
+    return MINI_KVM_SUCCESS;
+}
 
 MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint64_t mem_size) {
     int32_t kvm_version;
@@ -75,6 +91,11 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint64_t mem_size) {
             ERROR("failed to set TSS ADDR : %s", strerror(errno));
             return MINI_KVM_FAILED_IOCTL;
         }
+
+        if (ioctl(kvm->kvm_fd, KVM_SET_IDENTITY_MAP_ADDR, IDENTITY_MAP_ADDR), 0) {
+            ERROR("failed to set TSS ADDR : %s", strerror(errno));
+            return MINI_KVM_FAILED_IOCTL;
+        }
     }
 
     if (mem_size == 0) {
@@ -100,6 +121,10 @@ MiniKVMError mini_kvm_setup_kvm(Kvm *kvm, uint64_t mem_size) {
         return MINI_KVM_FAILED_MEMORY_REGION_CREATION;
     }
     INFO("VM memory region created at guest physical address 0x0");
+
+    if (kvm_setup_irq(kvm) != MINI_KVM_SUCCESS) {
+        return MINI_KVM_FAILED_VM_CREATION;
+    }
 
     return MINI_KVM_SUCCESS;
 }
@@ -209,20 +234,19 @@ MiniKVMError mini_kvm_configure_paging(Kvm *kvm) {
     data_seg.selector = 2 << 3;
     data_seg.type = 0x3;
 
-    // enable cpu bits
-    for (size_t i = 0; i < kvm->vcpus->len; i++) {
-        VCpu *vcpu = &kvm->vcpus->tab[i];
-        vcpu->sregs.cr0 = CR0_PE | CR0_PG;
-        vcpu->sregs.cr3 = PLM4_ADDR;
-        vcpu->sregs.cr4 = CR4_PAE;
-        vcpu->sregs.efer = EFER_LME | EFER_LMA;
-        vcpu->sregs.cs = code_seg;
-        vcpu->sregs.ds = vcpu->sregs.es = vcpu->sregs.fs = vcpu->sregs.gs = data_seg;
-        if (ioctl(vcpu->fd, KVM_SET_SREGS, &vcpu->sregs) < 0) {
-            ERROR("failed to set sregs in %s (%s)", __FUNCTION__, strerror(errno));
-            mini_kvm_print_sregs(&vcpu->sregs);
-            return MINI_KVM_INTERNAL_ERROR;
-        }
+    // Enable paging only the first cpu, the kernel will configure other VCPU later
+    VCpu *vcpu = &kvm->vcpus->tab[0];
+    vcpu->sregs.cr0 = CR0_PE | CR0_PG;
+    vcpu->sregs.cr3 = PLM4_ADDR;
+    vcpu->sregs.cr4 = CR4_PAE;
+    vcpu->sregs.efer = EFER_LME | EFER_LMA;
+    vcpu->sregs.cs = code_seg;
+    vcpu->sregs.ds = vcpu->sregs.es = vcpu->sregs.fs = vcpu->sregs.gs = data_seg;
+
+    if (ioctl(vcpu->fd, KVM_SET_SREGS, &vcpu->sregs) < 0) {
+        ERROR("failed to set sregs in %s (%s)", __FUNCTION__, strerror(errno));
+        mini_kvm_print_sregs(&vcpu->sregs);
+        return MINI_KVM_FAILED_IOCTL;
     }
 
     return ret;
