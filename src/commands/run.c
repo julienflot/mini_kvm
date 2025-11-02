@@ -34,7 +34,7 @@ static const struct option opts_def[] = {
     {"kernel", required_argument, NULL, 'k'}, {0, 0, 0, 0}};
 
 static inline uint64_t aligned_to_pages(uint64_t mem_size) {
-    return (mem_size % 0x1000 == 0) ? mem_size : mem_size - mem_size % 0x1000 + 0x1000;
+    return (mem_size % PAGE_SIZE == 0) ? mem_size : mem_size - mem_size % PAGE_SIZE + PAGE_SIZE;
 }
 
 static int32_t parse_mem(char *arg, uint64_t *mem) {
